@@ -13,7 +13,7 @@ builder.Host.UseSerilog();
 
 // Features
 builder.Services.AddVkFeature();
-builder.Services.AddCoreFeature(builder.Configuration);
+builder.Services.AddCoreFeature();
 builder.Services.AddHostFeature();
 
 var app = builder.Build();

@@ -28,6 +28,7 @@ namespace VKBot.Features.Host.Services
 
                         _vk.sent(.......);
                         message.Status = InboxStatus.Sent;
+                        РЕТРАЙ СООБЩШЕНИЯ ЧЕРЕЗ ЧАС, ЕСЛИ ЕГО СКИПНУЛИ
                     }
                     catch(Exception ex)
                     {

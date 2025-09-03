@@ -1,5 +1,6 @@
 using VKBot.Features.VK.Interfaces;
 using VKBot.Features.Core.Application.Interfaces;
+using VKBot.Features.Core.Domain.Models;
 
 namespace VKBot.Features.Host.Services;
 
@@ -26,13 +27,26 @@ public class VkLongPollService : BackgroundService
             {
                 var messages = await _vkBot.GetUpdatesAsync(server);
                 
-                foreach (var message in messages)
+                foreach (var vkMessage in messages)
                 {
                     using var scope = _serviceProvider.CreateScope();
-                    var commandHandler = scope.ServiceProvider.GetRequiredService<ICommandHandler>();
-                    var commandMessage = await commandHandler.HandleAsync(message.UserId, message.Text);
-                    if (!string.IsNullOrEmpty(commandMessage))
-                        await _vkBot.SendMessageAsync(message.UserId, commandMessage);
+                    var messageProcessor = scope.ServiceProvider.GetRequiredService<IMessageProcessor>();
+                    var userMessage = new UserMessage 
+                    { 
+                        UserId = vkMessage.UserId, 
+                        Text = vkMessage.Text,
+                        ReplyToMessageId = vkMessage.ReplyToMessageId,
+                        Attachments = vkMessage.Attachments.Select(a => new MessageAttachment
+                        {
+                            Type = a.Type,
+                            Url = a.Url,
+                            FileName = a.FileName
+                        }).ToList()
+                    };
+                    var response = await messageProcessor.ProcessMessageAsync(userMessage);
+                    
+                    if (!string.IsNullOrEmpty(response))
+                        await _vkBot.SendMessageAsync(vkMessage.UserId, response);
                 }
                 
                 await Task.Delay(1000, stoppingToken);

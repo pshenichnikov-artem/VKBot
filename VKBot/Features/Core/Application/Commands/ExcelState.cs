@@ -1,0 +1,16 @@
+using VKBot.Features.Core.Domain.Interfaces;
+
+namespace VKBot.Features.Core.Application.Commands
+{
+    public class ExcelState : StateDecorator
+    {
+        protected override Dictionary<string, Type> Transitions => new();
+        
+        protected override bool IsLast => true;
+        
+        protected override async Task<string?> ExecuteAsync(UserMessage message, UserSession session)
+        {
+            return "Функция Excel";
+        }
+    }
+}
