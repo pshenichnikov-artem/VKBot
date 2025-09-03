@@ -30,8 +30,9 @@ public class VkLongPollService : BackgroundService
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var commandHandler = scope.ServiceProvider.GetRequiredService<ICommandHandler>();
-                    var commandResult = await commandHandler.HandleAsync(message.UserId, message.Text);
-                    await _vkBot.SendMessageAsync(message.UserId, commandResult);
+                    var commandMessage = await commandHandler.HandleAsync(message.UserId, message.Text);
+                    if (!string.IsNullOrEmpty(commandMessage))
+                        await _vkBot.SendMessageAsync(message.UserId, commandMessage);
                 }
                 
                 await Task.Delay(1000, stoppingToken);

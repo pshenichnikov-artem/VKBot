@@ -1,4 +1,5 @@
 ﻿
+using VKBot.Features.Core.Application.Interfaces;
 using VKBot.Features.Core.Data;
 
 namespace VKBot.Features.Host.Services
@@ -11,12 +12,20 @@ namespace VKBot.Features.Host.Services
             {
                 /*var scope = serviceProvider.CreateAsyncScope();
                 var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                //TODO оптимизировать все запросы в redis и убрать ненужные inbox
+                var reddis = scope.ServiceProvider.GetRequiredService<ISessionService>();
 
                 var inbox = context.Inbox.Where(i => i.Status == InboxStatus.Pendind).ToList();
                 foreach (var message in inbox)
                 {
                     try
                     {
+                        var session = reddis.GetSessionAsync(message.UserId);
+                        if (session != null)
+                        {
+                            continue;
+                        }
+
                         _vk.sent(.......);
                         message.Status = InboxStatus.Sent;
                     }

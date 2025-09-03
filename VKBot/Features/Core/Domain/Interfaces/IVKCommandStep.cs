@@ -7,6 +7,9 @@ namespace VKBot.Features.Core.Domain.Interfaces;
 /// </summary>
 public interface IVKCommandStep
 {
+    /// <summary>
+    /// Первый шаг начинается с 0
+    /// </summary>
     int StepNumber { get; }
     Task<CommandStepResult> ExecuteAsync(long vkUserId, string input, UserSession session);
 }
@@ -18,6 +21,12 @@ public interface IVKCommandStep<TCommand> : IVKCommandStep
 
 public class CommandStepResult
 {
+    public CommandStepResult(string message, bool isCompleted)
+    {
+        Message = message;
+        IsCompleted = isCompleted;
+    }
+
     public string Message { get; set; } = string.Empty;
     public bool IsCompleted { get; set; }
 }

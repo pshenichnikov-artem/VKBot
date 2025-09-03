@@ -17,6 +17,16 @@ public class CommandHandler : ICommandHandler
 
     public async Task<string> HandleAsync(long vkUserId, string vkUserMessage)
     {
+
+        var parts = vkUserMessage.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var commandName = parts[0][1..];
+        var args = parts.Skip(1).ToArray();
+        if(commandName == "cancel")
+        {
+            await _sessionService.DeleteSessionAsync(vkUserId);
+            return "Команда сброшена";
+        }
+
         var userSession = await _sessionService.GetSessionAsync(vkUserId);
 
         IVKCommand? command;
@@ -52,10 +62,6 @@ public class CommandHandler : ICommandHandler
         
         if (!vkUserMessage.StartsWith('/'))
             return "Неизвестная команда";
-
-        var parts = vkUserMessage.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var commandName = parts[0][1..];
-        var args = parts.Skip(1).ToArray();
 
         command = _commands.FirstOrDefault(c => c.CommandName.Equals(commandName, StringComparison.OrdinalIgnoreCase));
         
