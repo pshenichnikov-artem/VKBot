@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: vkbot_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vkbot_network
+    restart: always
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: vkbot_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - vkbot_network
+    restart: always
+
+  vkbot:
+    build:
+      context: ./VKBot
+      dockerfile: Dockerfile
+    container_name: vkbot_app
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__PostgreSQL: "${POSTGRES_CONNECTION}"
+      ConnectionStrings__Redis: "${REDIS_CONNECTION}"
+      VK__AccessToken: "${VK_ACCESS_TOKEN}"
+      ASPNETCORE_URLS: "http://+:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - vkbot_network
+    restart: always
+
+volumes:
+  postgres_data:
+
+networks:
+  vkbot_network:
+    driver: bridge
