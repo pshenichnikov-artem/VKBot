@@ -105,7 +105,7 @@ public class VkBot : IVkBot
             _logger.LogError("2 " + server.Ts);
             _logger.LogError("Я тут");
 
-            messages = _parseService.GetNewMessages(result.Updates);
+            messages = await _parseService.GetNewMessages(result.Updates);
 
             return messages;
         }
