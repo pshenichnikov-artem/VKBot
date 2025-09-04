@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using VKBot.Features.VK.Interfaces;
 using VKBot.Features.VK.Models;
+using VKBot.Features.Core.Domain.Models;
+using System.Text;
 
 namespace VKBot.Features.VK.Services;
 
@@ -92,34 +94,55 @@ public class VkBot : IVkBot
         }
     }
 
-    public async Task SendMessageAsync(long peerId, string message, long? replyToMessageId = null, VkKeyboard? keyboard = null)
+    public async Task SendMessageAsync(long peerId, string message, long? replyToMessageId = null, VkKeyboard? keyboard = null, List<StateAttachment>? attachments = null)
     {
-        var urlBuilder = new System.Text.StringBuilder();
-        urlBuilder.Append($"https://api.vk.com/method/messages.send?");
-        urlBuilder.Append($"peer_id={peerId}");
-        urlBuilder.Append($"&message={Uri.EscapeDataString(message)}");
-        urlBuilder.Append($"&access_token={_accessToken}");
-        urlBuilder.Append($"&v=5.131");
-        urlBuilder.Append($"&random_id={Random.Shared.Next()}");
+        var parameters = new List<KeyValuePair<string, string>>
+        {
+            new("peer_id", peerId.ToString()),
+            new("message", message),
+            new("access_token", _accessToken),
+            new("v", "5.131"),
+            new("random_id", Random.Shared.Next().ToString())
+        };
         
         if (replyToMessageId.HasValue)
         {
-            urlBuilder.Append($"&reply_to={replyToMessageId.Value}");
+            parameters.Add(new("reply_to", replyToMessageId.Value.ToString()));
         }
         
         if (keyboard != null)
         {
             var keyboardJson = JsonSerializer.Serialize(keyboard);
-            urlBuilder.Append($"&keyboard={Uri.EscapeDataString(keyboardJson)}");
+            parameters.Add(new("keyboard", keyboardJson));
         }
+        
+        if (attachments?.Count > 0)
+        {
+            var attachmentStrings = attachments
+                .Where(a => a.OwnerId.HasValue && a.MediaId.HasValue)
+                .Select(a => $"{a.Type}{a.OwnerId}_{a.MediaId}")
+                .ToList();
+            
+            if (attachmentStrings.Count > 0)
+            {
+                parameters.Add(new("attachment", string.Join(",", attachmentStrings)));
+            }
+        }
+
+        
 
         try
         {
-            var response = await _httpClient.GetStringAsync(urlBuilder.ToString());
+            var content = new FormUrlEncodedContent(parameters);
+
+            var response = await _httpClient.PostAsync("https://api.vk.com/method/messages.send", content);
+            var responseText = await response.Content.ReadAsStringAsync();
             
-            if (response.Contains("\"error\""))
+            _logger.LogInformation("[VkBot] Ответ VK API: {Response}", responseText);
+            
+            if (responseText.Contains("\"error\""))
             {
-                _logger.LogError("[VkBot] Ошибка отправки сообщения получателю {PeerId}. Ответ: {Response}", peerId, response);
+                _logger.LogError("[VkBot] Ошибка отправки сообщения получателю {PeerId}. Ответ: {Response}", peerId, responseText);
             }
         }
         catch (Exception ex)

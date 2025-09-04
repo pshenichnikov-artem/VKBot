@@ -37,4 +37,6 @@ public class StateAttachment
     public string Type { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public string? FileName { get; set; }
+    public long? OwnerId { get; set; }
+    public long? MediaId { get; set; }
 }

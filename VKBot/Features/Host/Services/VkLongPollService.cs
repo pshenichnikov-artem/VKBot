@@ -58,7 +58,7 @@ public class VkLongPollService : BackgroundService
                     {
                         _logger.LogInformation("[VkLongPoll] Отправляем ответ на PeerId: {PeerId}, ReplyTo: {ReplyTo}", 
                             vkMessage.PeerId, result.ReplyToMessageId);
-                        await _vkBot.SendMessageAsync(vkMessage.PeerId, result.Text, result.ReplyToMessageId, result.Keyboard);
+                        await _vkBot.SendMessageAsync(vkMessage.PeerId, result.Text, result.ReplyToMessageId, result.Keyboard, result.Attachments);
                     }
                 }
 
@@ -92,6 +92,30 @@ public class VkLongPollService : BackgroundService
             "audio" when attachment.Audio != null => $"{attachment.Audio.Artist} - {attachment.Audio.Title}",
             "video" when attachment.Video != null => attachment.Video.Title,
             _ => $"Вложение типа {attachment.Type}"
+        };
+    }
+    
+    private long? GetAttachmentOwnerId(VkAttachmentItem attachment)
+    {
+        return attachment.Type switch
+        {
+            "photo" when attachment.Photo != null => attachment.Photo.OwnerId,
+            "doc" when attachment.Doc != null => attachment.Doc.OwnerId,
+            "video" when attachment.Video != null => attachment.Video.OwnerId,
+            "audio" when attachment.Audio != null => attachment.Audio.OwnerId,
+            _ => null
+        };
+    }
+    
+    private long? GetAttachmentMediaId(VkAttachmentItem attachment)
+    {
+        return attachment.Type switch
+        {
+            "photo" when attachment.Photo != null => attachment.Photo.Id,
+            "doc" when attachment.Doc != null => attachment.Doc.Id,
+            "video" when attachment.Video != null => attachment.Video.Id,
+            "audio" when attachment.Audio != null => attachment.Audio.Id,
+            _ => null
         };
     }
 }

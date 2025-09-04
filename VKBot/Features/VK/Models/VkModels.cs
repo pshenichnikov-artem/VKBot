@@ -59,6 +59,12 @@ public class VkAttachmentItem
 
 public class VkPhoto
 {
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+    
+    [JsonPropertyName("owner_id")]
+    public long OwnerId { get; set; }
+    
     [JsonPropertyName("sizes")]
     public List<VkPhotoSize> Sizes { get; set; } = new();
 }
@@ -80,6 +86,12 @@ public class VkPhotoSize
 
 public class VkDoc
 {
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+    
+    [JsonPropertyName("owner_id")]
+    public long OwnerId { get; set; }
+    
     [JsonPropertyName("title")]
     public string Title { get; set; } = string.Empty;
     
@@ -92,6 +104,12 @@ public class VkDoc
 
 public class VkAudio
 {
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+    
+    [JsonPropertyName("owner_id")]
+    public long OwnerId { get; set; }
+    
     [JsonPropertyName("artist")]
     public string Artist { get; set; } = string.Empty;
     
@@ -104,6 +122,12 @@ public class VkAudio
 
 public class VkVideo
 {
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+    
+    [JsonPropertyName("owner_id")]
+    public long OwnerId { get; set; }
+    
     [JsonPropertyName("title")]
     public string Title { get; set; } = string.Empty;
     

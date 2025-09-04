@@ -41,10 +41,34 @@ namespace VKBot.Features.Core.Application.Commands
                         },
                         Color = "negative"
                         }
+                    },
+                    new List<VkButton>
+                    {
+                        new VkButton {
+                            Action = new VkButtonAction
+                            {
+                                Type = "text",
+                                Label = "Второй ряд",
+                                Payload = "{\"button\": \"second\"}"
+                            },
+                            Color = "secondary"
+                        }
                     }
                 }
             };
-            return Task.FromResult(StateResult.Success("Тестовая команда", message.MessageId, null, keyboard));
+
+            //photo-227681680_457239022
+            List<StateAttachment>? attachments = new List<StateAttachment>
+            {
+                new StateAttachment
+                {
+                    Type = "photo",
+                    OwnerId = -227681680,
+                    MediaId = 457239022
+                }
+            };
+
+            return Task.FromResult(StateResult.Success("Тестовая команда", message.MessageId, attachments, keyboard));
         }
     }
 }
