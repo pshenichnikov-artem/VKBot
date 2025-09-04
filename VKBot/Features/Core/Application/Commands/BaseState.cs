@@ -35,6 +35,10 @@ namespace VKBot.Features.Core.Application.Commands
             { ("/deleteGroup", UserRole.Admin), typeof(EnterDeleteGroupNameState) }
         }; 
 
+            { ("/test", UserRole.Student), typeof(TestState) },
+            { ("/test", UserRole.Admin), typeof(TestStateAdmin) }
+        };
+        
         protected override Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)
         {
             return Task.FromResult(StateResult.Success("Неизвестная команда. Используйте /start для начала работы."));

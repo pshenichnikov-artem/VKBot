@@ -4,6 +4,6 @@ namespace VKBot.Features.Core.Application.Interfaces
 {
     public interface IMessageProcessor
     {
-        Task<StateResult> ProcessMessageAsync(UserMessage message);
+        Task<StateResult?> ProcessMessageAsync(UserMessage message);
     }
 }
