@@ -37,6 +37,8 @@ public class VkLongPollService : BackgroundService
                     var userMessage = new UserMessage
                     {
                         UserId = vkMessage.FromId,
+                        PeerId = vkMessage.PeerId,
+                        MessageId = vkMessage.Id,
                         Text = vkMessage.Text,
                         ReplyToMessageId = vkMessage.ReplyMessage?.Id,
                         Attachments = vkMessage.Attachments.Select(a => new MessageAttachment
@@ -47,12 +49,17 @@ public class VkLongPollService : BackgroundService
                         }).ToList()
                     };
 
+                    _logger.LogInformation("[VkLongPoll] Получено сообщение от {UserId}, PeerId: {PeerId}, MessageId: {MessageId}", 
+                        vkMessage.FromId, vkMessage.PeerId, vkMessage.Id);
 
                     var result = await messageProcessor.ProcessMessageAsync(userMessage);
 
-                    //TODO реагировать и на остальные поля
                     if (!string.IsNullOrEmpty(result.Text))
-                        await _vkBot.SendMessageAsync(vkMessage.FromId, result.Text);
+                    {
+                        _logger.LogInformation("[VkLongPoll] Отправляем ответ на PeerId: {PeerId}, ReplyTo: {ReplyTo}", 
+                            vkMessage.PeerId, result.ReplyToMessageId);
+                        await _vkBot.SendMessageAsync(vkMessage.PeerId, result.Text, result.ReplyToMessageId, result.Keyboard);
+                    }
                 }
 
                 await Task.Delay(1000, stoppingToken);

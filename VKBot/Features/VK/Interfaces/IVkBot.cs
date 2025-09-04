@@ -6,5 +6,5 @@ public interface IVkBot
 {
     Task<LongPollServer?> GetLongPollServerAsync();
     Task<List<VkMessageItem>> GetUpdatesAsync(LongPollServer server);
-    Task SendMessageAsync(long userId, string message);
+    Task SendMessageAsync(long peerId, string message, long? replyToMessageId = null, VkKeyboard? keyboard = null);
 }

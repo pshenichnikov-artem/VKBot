@@ -3,6 +3,7 @@ using VKBot.Features.Core.Domain.Interfaces;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.Core.Enums;
+using VKBot.Features.Core.Application.Commands.User;
 
 namespace VKBot.Features.Core.Application.Commands
 {
@@ -16,7 +17,9 @@ namespace VKBot.Features.Core.Application.Commands
             { ("/help", UserRole.Admin), typeof(HelpState) },
             { ("/send", UserRole.Admin), typeof(SendGroupState) },
             { ("/alarm", UserRole.Admin), typeof(AlarmState) },
-            { ("/excel", UserRole.Admin), typeof(ExcelState) }
+            { ("/excel", UserRole.Admin), typeof(ExcelState) },
+            { ("/test", UserRole.Student), typeof(TestState) },
+            { ("/test", UserRole.Admin), typeof(TestStateAdmin) }
         };
         
         protected override Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)

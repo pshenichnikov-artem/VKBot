@@ -76,10 +76,12 @@ namespace VKBot.Features.VK.Services
             if ((flags & OUTGOING_MESSAGE_FLAG) != 0)
                 return null;
                 
+            var userId = fields[USER_ID_INDEX].GetInt64();
             return new VkMessageItem
             {
                 Id = fields[MESSAGE_ID_INDEX].GetInt64(),
-                FromId = fields[USER_ID_INDEX].GetInt64(),
+                FromId = userId,
+                PeerId = userId, // Для личных сообщений peer_id = user_id
                 Text = fields[TEXT_INDEX].GetString() ?? string.Empty,
                 Attachments = new List<VkAttachmentItem>()
             };
@@ -107,7 +109,9 @@ namespace VKBot.Features.VK.Services
                     
                 for (int i = 0; i < messages.Count && i < apiResponse.Response.Items.Count; i++)
                 {
+                    var originalPeerId = messages[i].PeerId;
                     messages[i].Attachments = apiResponse.Response.Items[i].Attachments;
+                    messages[i].PeerId = originalPeerId; // Сохраняем оригинальный PeerId
                 }
             }
             catch (Exception ex)

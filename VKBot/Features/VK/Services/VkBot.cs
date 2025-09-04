@@ -92,23 +92,39 @@ public class VkBot : IVkBot
         }
     }
 
-    //TODO сделать возможность ответа на сообщение(опционально поле)
-    public async Task SendMessageAsync(long userId, string message)
+    public async Task SendMessageAsync(long peerId, string message, long? replyToMessageId = null, VkKeyboard? keyboard = null)
     {
-        var url = $"https://api.vk.com/method/messages.send?user_id={userId}&message={Uri.EscapeDataString(message)}&access_token={_accessToken}&v=5.131&random_id={Random.Shared.Next()}";
+        var urlBuilder = new System.Text.StringBuilder();
+        urlBuilder.Append($"https://api.vk.com/method/messages.send?");
+        urlBuilder.Append($"peer_id={peerId}");
+        urlBuilder.Append($"&message={Uri.EscapeDataString(message)}");
+        urlBuilder.Append($"&access_token={_accessToken}");
+        urlBuilder.Append($"&v=5.131");
+        urlBuilder.Append($"&random_id={Random.Shared.Next()}");
+        
+        if (replyToMessageId.HasValue)
+        {
+            urlBuilder.Append($"&reply_to={replyToMessageId.Value}");
+        }
+        
+        if (keyboard != null)
+        {
+            var keyboardJson = JsonSerializer.Serialize(keyboard);
+            urlBuilder.Append($"&keyboard={Uri.EscapeDataString(keyboardJson)}");
+        }
 
         try
         {
-            var response = await _httpClient.GetStringAsync(url);
+            var response = await _httpClient.GetStringAsync(urlBuilder.ToString());
             
             if (response.Contains("\"error\""))
             {
-                _logger.LogError("[VkBot] Ошибка отправки сообщения пользователю {UserId}. Ответ: {Response}", userId, response);
+                _logger.LogError("[VkBot] Ошибка отправки сообщения получателю {PeerId}. Ответ: {Response}", peerId, response);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[VkBot] Ошибка отправки сообщения пользователю {UserId}", userId);
+            _logger.LogError(ex, "[VkBot] Ошибка отправки сообщения получателю {PeerId}", peerId);
         }
     }
 }
