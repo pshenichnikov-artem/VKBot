@@ -11,11 +11,10 @@ namespace VKBot.Features.Core.Domain.Entities
         [Required]
         public string FullName { get; set; }
         [Required]
-        public string Role { get; set; } = UserRole.Student.ToString().ToLower();
+        public UserRole Role { get; set; } = UserRole.Student;
         [Required]
         public bool IsConfirmed { get; set; } = false;
         public bool IsBlocked { get; set; } = false;
-        //Группа
         [Required]
         public short GroupId { get; set; }
         public Group? Group { get; set; } = null;

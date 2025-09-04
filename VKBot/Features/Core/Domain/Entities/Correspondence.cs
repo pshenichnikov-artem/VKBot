@@ -7,6 +7,5 @@
         // RecipientMessageId
         // SenderId
         // recipientId(проверка, что роль отправителя и получателя не совпадают)
-        // text
     }
 }

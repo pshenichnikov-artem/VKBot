@@ -10,7 +10,7 @@ namespace VKBot.Features.Host.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                /*var scope = serviceProvider.CreateAsyncScope();
+                var scope = serviceProvider.CreateAsyncScope();
                 var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 //TODO оптимизировать все запросы в redis и убрать ненужные inbox
                 var reddis = scope.ServiceProvider.GetRequiredService<ISessionService>();

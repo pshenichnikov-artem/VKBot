@@ -21,10 +21,17 @@ namespace VKBot.Features.Core.Domain.Interfaces
                 if (nextType != null)
                 {
                     var nextState = (StateDecorator)Activator.CreateInstance(nextType)!;
-                    var response = await nextState.ExecuteAsync(message, session);
-                    if (!string.IsNullOrEmpty(response))
-                        session.SetLastResponse(response);
-                    return nextState.IsLast ? null : nextState;
+                    try
+                    {
+                        var response = await nextState.ExecuteAsync(message, session);
+                        if (!string.IsNullOrEmpty(response))
+                            session.SetLastResponse(response);
+                        return nextState.IsLast ? null : nextState;
+                    }
+                    catch
+                    {
+                        return this;
+                    }
                 }
                 return null;
             }
