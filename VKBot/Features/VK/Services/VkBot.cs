@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using VKBot.Features.VK.Interfaces;
 using VKBot.Features.VK.Models;
+using VKBot.Features.Core.Domain.Models;
+using System.Text;
 
 namespace VKBot.Features.VK.Services;
 
@@ -31,7 +33,7 @@ public class VkBot : IVkBot
         try
         {
             var response = await _httpClient.GetStringAsync(url);
-            var result = JsonSerializer.Deserialize<VkApiResponse<LongPollServer>>(response, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var result = JsonSerializer.Deserialize<VkLongPollServerResponse>(response, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (result?.Response == null)
             {
@@ -48,12 +50,12 @@ public class VkBot : IVkBot
         }
     }
 
-    public async Task<List<VkMessage>> GetUpdatesAsync(LongPollServer server)
+    public async Task<List<VkMessageItem>> GetUpdatesAsync(LongPollServer server)
     {
         if (server?.Server == null || server.Key == null)
         {
             _logger.LogError("[VkBot] LongPoll сервер не инициализирован");
-            return new List<VkMessage>();
+            return new List<VkMessageItem>();
         }
 
         var url = $"https://{server.Server}?act=a_check&key={server.Key}&ts={server.Ts}&wait=25";
@@ -66,13 +68,13 @@ public class VkBot : IVkBot
             if (result == null)
             {
                 _logger.LogError("[VkBot] Пустой ответ от LongPoll");
-                return new List<VkMessage>();
+                return new List<VkMessageItem>();
             }
 
             if (result.Failed > 0)
             {
                 _logger.LogWarning("[VkBot] LongPoll ошибка {Failed}", result.Failed);
-                return new List<VkMessage>();
+                return new List<VkMessageItem>();
             }
 
             server.Ts = result.Ts;
@@ -88,26 +90,64 @@ public class VkBot : IVkBot
         catch (Exception ex)
         {
             _logger.LogError(ex, "[VkBot] Ошибка получения обновлений");
-            return new List<VkMessage>();
+            return new List<VkMessageItem>();
         }
     }
 
-    public async Task SendMessageAsync(long userId, string message)
+    public async Task SendMessageAsync(long peerId, string message, long? replyToMessageId = null, VkKeyboard? keyboard = null, List<StateAttachment>? attachments = null)
     {
-        var url = $"https://api.vk.com/method/messages.send?user_id={userId}&message={Uri.EscapeDataString(message)}&access_token={_accessToken}&v=5.131&random_id={Random.Shared.Next()}";
+        var parameters = new List<KeyValuePair<string, string>>
+        {
+            new("peer_id", peerId.ToString()),
+            new("message", message),
+            new("access_token", _accessToken),
+            new("v", "5.131"),
+            new("random_id", Random.Shared.Next().ToString())
+        };
+        
+        if (replyToMessageId.HasValue)
+        {
+            parameters.Add(new("reply_to", replyToMessageId.Value.ToString()));
+        }
+        
+        if (keyboard != null)
+        {
+            var keyboardJson = JsonSerializer.Serialize(keyboard);
+            parameters.Add(new("keyboard", keyboardJson));
+        }
+        
+        if (attachments?.Count > 0)
+        {
+            var attachmentStrings = attachments
+                .Where(a => a.OwnerId.HasValue && a.MediaId.HasValue)
+                .Select(a => $"{a.Type}{a.OwnerId}_{a.MediaId}")
+                .ToList();
+            
+            if (attachmentStrings.Count > 0)
+            {
+                parameters.Add(new("attachment", string.Join(",", attachmentStrings)));
+            }
+        }
+
+        
 
         try
         {
-            var response = await _httpClient.GetStringAsync(url);
+            var content = new FormUrlEncodedContent(parameters);
+
+            var response = await _httpClient.PostAsync("https://api.vk.com/method/messages.send", content);
+            var responseText = await response.Content.ReadAsStringAsync();
             
-            if (response.Contains("\"error\""))
+            _logger.LogInformation("[VkBot] Ответ VK API: {Response}", responseText);
+            
+            if (responseText.Contains("\"error\""))
             {
-                _logger.LogError("[VkBot] Ошибка отправки сообщения пользователю {UserId}. Ответ: {Response}", userId, response);
+                _logger.LogError("[VkBot] Ошибка отправки сообщения получателю {PeerId}. Ответ: {Response}", peerId, responseText);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[VkBot] Ошибка отправки сообщения пользователю {UserId}", userId);
+            _logger.LogError(ex, "[VkBot] Ошибка отправки сообщения получателю {PeerId}", peerId);
         }
     }
 }

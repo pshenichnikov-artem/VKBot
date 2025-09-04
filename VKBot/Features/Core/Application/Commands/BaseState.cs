@@ -1,16 +1,30 @@
+using Serilog;
 using VKBot.Features.Core.Domain.Interfaces;
+using VKBot.Features.Core.Domain.Models;
+using VKBot.Features.Core.Domain.Enums;
+using VKBot.Features.Core.Enums;
+using VKBot.Features.Core.Application.Commands.User;
 
 namespace VKBot.Features.Core.Application.Commands
 {
     public class BaseState : StateDecorator
     {
-        protected override Dictionary<string, Type> Transitions => new()
+        protected override Dictionary<(string command, UserRole role), Type> Transitions => new()
         {
-            { "/send", typeof(SendGroupState) },
-            { "/start", typeof(StartState) },
-            { "/help", typeof(HelpState) },
-            { "/alarm", typeof(AlarmState) },
-            { "/excel", typeof(ExcelState) }
+            { ("/start", UserRole.Student), typeof(User.StartStateUser) },
+            { ("/help", UserRole.Student), typeof(User.HelpStateUser) },
+            { ("/start", UserRole.Admin), typeof(StartState) },
+            { ("/help", UserRole.Admin), typeof(HelpState) },
+            { ("/send", UserRole.Admin), typeof(SendGroupState) },
+            { ("/alarm", UserRole.Admin), typeof(AlarmState) },
+            { ("/excel", UserRole.Admin), typeof(ExcelState) },
+            { ("/test", UserRole.Student), typeof(TestState) },
+            { ("/test", UserRole.Admin), typeof(TestStateAdmin) }
         };
+        
+        protected override Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)
+        {
+            return Task.FromResult(StateResult.Success("Неизвестная команда. Используйте /start для начала работы."));
+        }
     }
 }

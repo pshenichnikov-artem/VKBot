@@ -17,7 +17,7 @@ namespace VKBot.Features.Core.Application.Services
             _logger = logger;
         }
         
-        public async Task<string?> ProcessMessageAsync(UserMessage message)
+        public async Task<StateResult?> ProcessMessageAsync(UserMessage message)
         {
             var session = await _sessionService.GetSessionAsync(message.UserId) ?? new UserSession { UserId = message.UserId };
             
@@ -27,9 +27,13 @@ namespace VKBot.Features.Core.Application.Services
             
             var currentState = (StateDecorator)Activator.CreateInstance(currentStateType)!;
             
-            var nextState = await currentState.ProcessAsync(message, session);
+            var (nextState, result) = await currentState.ProcessAsync(message, session);
             
-            if (nextState != null)
+            if (nextState == currentState)
+            {
+                await _sessionService.SetSessionAsync(session);
+            }
+            else if (nextState != null)
             {
                 _logger.LogInformation("Пользователь {UserId} перешел из {FromState} в {ToState}", 
                     message.UserId, currentStateType.Name, nextState.GetType().Name);
@@ -43,7 +47,7 @@ namespace VKBot.Features.Core.Application.Services
                 await _sessionService.DeleteSessionAsync(message.UserId);
             }
             
-            return session.GetLastResponse();
+            return result;
         }
 
     }
