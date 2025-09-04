@@ -2,6 +2,7 @@ using System.Text.Json;
 using VKBot.Features.Core.Application.Interfaces;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.VK.Interfaces;
+using VKBot.Features.VK.Models;
 
 namespace VKBot.Features.Host.Services;
 
@@ -35,59 +36,23 @@ public class VkLongPollService : BackgroundService
 
                     var userMessage = new UserMessage
                     {
-                        UserId = vkMessage.UserId,
+                        UserId = vkMessage.FromId,
                         Text = vkMessage.Text,
-                        ReplyToMessageId = vkMessage.ReplyToMessageId,
-                        Attachments = vkMessage.Attachments.Select(a =>
+                        ReplyToMessageId = vkMessage.ReplyMessage?.Id,
+                        Attachments = vkMessage.Attachments.Select(a => new MessageAttachment
                         {
-                            var attachment = new MessageAttachment { Type = a.Type };
-
-                            if (a.Payload.ValueKind == JsonValueKind.Object)
-                            {
-                                switch (a.Type)
-                                {
-                                    case "photo":
-                                        if (a.Payload.TryGetProperty("sizes", out var sizes) && sizes.ValueKind == JsonValueKind.Array)
-                                        {
-                                            var largest = sizes.EnumerateArray()
-                                                .OrderByDescending(s => s.GetProperty("width").GetInt32())
-                                                .FirstOrDefault();
-
-                                            attachment.Url = largest.GetProperty("url").GetString();
-                                        }
-                                        break;
-
-                                    case "doc":
-                                        attachment.Url = a.Payload.GetProperty("url").GetString();
-                                        attachment.FileName = a.Payload.GetProperty("title").GetString();
-                                        break;
-
-                                    case "audio":
-                                        attachment.FileName = $"{a.Payload.GetProperty("artist").GetString()} - {a.Payload.GetProperty("title").GetString()}";
-                                        break;
-
-                                    case "video":
-                                        attachment.FileName = a.Payload.GetProperty("title").GetString();
-                                        break;
-
-                                    case "link":
-                                        attachment.Url = a.Payload.GetProperty("url").GetString();
-                                        attachment.FileName = a.Payload.GetProperty("title").GetString();
-                                        break;
-
-                                    default:
-                                        break;
-                                }
-                            }
-                            return attachment;
+                            Type = a.Type,
+                            Url = GetAttachmentUrl(a),
+                            FileName = GetAttachmentFileName(a)
                         }).ToList()
                     };
 
 
-                    var response = await messageProcessor.ProcessMessageAsync(userMessage);
+                    var result = await messageProcessor.ProcessMessageAsync(userMessage);
 
-                    if (!string.IsNullOrEmpty(response))
-                    await _vkBot.SendMessageAsync(vkMessage.UserId, response);
+                    //TODO реагировать и на остальные поля
+                    if (!string.IsNullOrEmpty(result.Text))
+                        await _vkBot.SendMessageAsync(vkMessage.FromId, result.Text);
                 }
 
                 await Task.Delay(1000, stoppingToken);
@@ -98,5 +63,28 @@ public class VkLongPollService : BackgroundService
                 await Task.Delay(5000, stoppingToken);
             }
         }
+    }
+    
+    private string GetAttachmentUrl(VkAttachmentItem attachment)
+    {
+        return attachment.Type switch
+        {
+            "photo" when attachment.Photo != null => attachment.Photo.Sizes.OrderByDescending(s => s.Width * s.Height).FirstOrDefault()?.Url ?? string.Empty,
+            "doc" when attachment.Doc != null => attachment.Doc.Url,
+            "video" when attachment.Video != null => attachment.Video.Player,
+            _ => string.Empty
+        };
+    }
+    
+    private string GetAttachmentFileName(VkAttachmentItem attachment)
+    {
+        return attachment.Type switch
+        {
+            "photo" => "photo.jpg",
+            "doc" when attachment.Doc != null => $"{attachment.Doc.Title}.{attachment.Doc.Extension}",
+            "audio" when attachment.Audio != null => $"{attachment.Audio.Artist} - {attachment.Audio.Title}",
+            "video" when attachment.Video != null => attachment.Video.Title,
+            _ => $"Вложение типа {attachment.Type}"
+        };
     }
 }

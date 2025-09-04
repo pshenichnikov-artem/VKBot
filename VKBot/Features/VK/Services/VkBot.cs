@@ -31,7 +31,7 @@ public class VkBot : IVkBot
         try
         {
             var response = await _httpClient.GetStringAsync(url);
-            var result = JsonSerializer.Deserialize<VkApiResponse<LongPollServer>>(response, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var result = JsonSerializer.Deserialize<VkLongPollServerResponse>(response, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (result?.Response == null)
             {
@@ -48,12 +48,12 @@ public class VkBot : IVkBot
         }
     }
 
-    public async Task<List<VkMessage>> GetUpdatesAsync(LongPollServer server)
+    public async Task<List<VkMessageItem>> GetUpdatesAsync(LongPollServer server)
     {
         if (server?.Server == null || server.Key == null)
         {
             _logger.LogError("[VkBot] LongPoll сервер не инициализирован");
-            return new List<VkMessage>();
+            return new List<VkMessageItem>();
         }
 
         var url = $"https://{server.Server}?act=a_check&key={server.Key}&ts={server.Ts}&wait=25";
@@ -66,13 +66,13 @@ public class VkBot : IVkBot
             if (result == null)
             {
                 _logger.LogError("[VkBot] Пустой ответ от LongPoll");
-                return new List<VkMessage>();
+                return new List<VkMessageItem>();
             }
 
             if (result.Failed > 0)
             {
                 _logger.LogWarning("[VkBot] LongPoll ошибка {Failed}", result.Failed);
-                return new List<VkMessage>();
+                return new List<VkMessageItem>();
             }
 
             server.Ts = result.Ts;
@@ -88,10 +88,11 @@ public class VkBot : IVkBot
         catch (Exception ex)
         {
             _logger.LogError(ex, "[VkBot] Ошибка получения обновлений");
-            return new List<VkMessage>();
+            return new List<VkMessageItem>();
         }
     }
 
+    //TODO сделать возможность ответа на сообщение(опционально поле)
     public async Task SendMessageAsync(long userId, string message)
     {
         var url = $"https://api.vk.com/method/messages.send?user_id={userId}&message={Uri.EscapeDataString(message)}&access_token={_accessToken}&v=5.131&random_id={Random.Shared.Next()}";
