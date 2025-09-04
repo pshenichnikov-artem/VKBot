@@ -3,20 +3,34 @@ using VKBot.Features.Core.Application.Commands;
 using VKBot.Features.Core.Domain.Enums;
 using Serilog;
 using VKBot.Features.Core.Enums;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace VKBot.Features.Core.Domain.Interfaces
 {
     public abstract class StateDecorator
     {
-        protected abstract Dictionary<(string command, UserRole role), Type> Transitions { get; }
+        public static IServiceProvider ServiceProvider { get; set; } = null!;
+        protected abstract Dictionary<(string command, UserRole? role), Type> Transitions { get; }
         protected virtual bool IsLast => false;
 
         protected abstract Task<StateResult> ExecuteAsync(UserMessage message, UserSession session);
+        
+        protected virtual async Task<(StateDecorator?, StateResult)?> ValidateTransitionAsync(UserMessage message, UserSession session)
+        {
+            return null;
+        }
 
         public async Task<(StateDecorator?, StateResult)> ProcessAsync(UserMessage message, UserSession session)
         {
             if (IsCancelCommand(message.Text))
                 return HandleCancel(message.UserId);
+                
+            if (message.Text == "/debug-get-state")
+                return HandleDebugGetState(session);
+                
+            var validationResult = await ValidateTransitionAsync(message, session);
+            if (validationResult.HasValue)
+                return validationResult.Value;
                 
             var nextType = FindTransition(message.Text, message.UserId);
             
@@ -26,30 +40,46 @@ namespace VKBot.Features.Core.Domain.Interfaces
             return HandleUnknownCommand(message.UserId, message.Text);
         }
         
-        private bool IsCancelCommand(string text) => text == "/cancel";
-        
-        private (StateDecorator?, StateResult) HandleCancel(long userId)
+        protected bool IsCancelCommand(string text) => text == "/cancel";
+
+        protected (StateDecorator?, StateResult) HandleCancel(long userId)
         {
             Log.Information("[{ClassName}] Пользователь {UserId} отменил действие", GetType().Name, userId);
-            return (new BaseState(), StateResult.Success());
+            return ((StateDecorator)ServiceProvider.GetService(typeof(BaseState))!, StateResult.Success());
         }
         
-        private Type? FindTransition(string command, long userId)
+        protected (StateDecorator?, StateResult) HandleDebugGetState(UserSession session)
+        {
+            var stateInfo = $"Текущее состояние: {GetType().Name}\nДанные сессии: {string.Join(", ", session.Data.Select(kvp => $"{kvp.Key}={kvp.Value}"))}";
+            return (this, StateResult.Success(stateInfo));
+        }
+
+        protected Type? FindTransition(string command, long userId)
         {
             var userRole = GetUserRole(userId);
             
+            // Поиск по команде и роли
             if (Transitions.ContainsKey((command, userRole)))
                 return Transitions[(command, userRole)];
                 
+            // Поиск по команде без роли
+            if (Transitions.ContainsKey((command, null)))
+                return Transitions[(command, null)];
+                
+            // Поиск по универсальной команде с ролью
             if (Transitions.ContainsKey(("*", userRole)))
                 return Transitions[("*", userRole)];
                 
+            // Поиск по универсальной команде без роли
+            if (Transitions.ContainsKey(("*", null)))
+                return Transitions[("*", null)];
+                
             return null;
         }
-        
-        private async Task<(StateDecorator?, StateResult)> ExecuteTransition(Type nextType, UserMessage message, UserSession session)
+
+        protected async Task<(StateDecorator?, StateResult)> ExecuteTransition(Type nextType, UserMessage message, UserSession session)
         {
-            var nextState = (StateDecorator)Activator.CreateInstance(nextType)!;
+            var nextState = (StateDecorator)ServiceProvider.GetService(nextType)!;
             
             Log.Information("[{ClassName}] Пользователь {UserId} выполняет команду {Command}", 
                 GetType().Name, message.UserId, message.Text);
@@ -67,15 +97,15 @@ namespace VKBot.Features.Core.Domain.Interfaces
                 return (this, StateResult.Failure("Ошибка выполнения команды"));
             }
         }
-        
-        private (StateDecorator?, StateResult) HandleUnknownCommand(long userId, string text)
+
+        protected (StateDecorator?, StateResult) HandleUnknownCommand(long userId, string text)
         {
             Log.Information("[{ClassName}] Пользователь {UserId} отправил нераспознанное сообщение {Message}", 
                 GetType().Name, userId, text);
             return (null, StateResult.Failure("Неизвестная команда."));
         }
-        
-        private UserRole GetUserRole(long userId)
+
+        protected UserRole GetUserRole(long userId)
         {
             // TODO: реализовать проверку роли через сервис
             return userId == 651565729 ? UserRole.Admin : UserRole.Student;

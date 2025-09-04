@@ -5,16 +5,17 @@ using VKBot.Features.Core.Enums;
 
 namespace VKBot.Features.Core.Application.Commands
 {
-    public class SendGroupState : StateDecorator
+    public class SendMessageState : StateDecorator
     {
-        protected override Dictionary<(string command, UserRole role), Type> Transitions => new()
+        protected override Dictionary<(string command, UserRole? role), Type> Transitions => new()
         {
-            { ("*", UserRole.Admin), typeof(SendMessageState) }
+            { ("*", UserRole.Admin), typeof(SendCompleteState) }
         };
         
         protected override Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)
         {
-            return Task.FromResult(StateResult.Success("Выберите группу"));
+            session.Data["group"] = message.Text;
+            return Task.FromResult(StateResult.Success("Введите ваше сообщение"));
         }
     }
 }
