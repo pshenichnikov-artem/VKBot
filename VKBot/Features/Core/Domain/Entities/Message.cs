@@ -14,5 +14,6 @@ namespace VKBot.Features.Core.Domain.Entities
         public User? Recipient { get; set; } = null;
         public string? TagerGroup { get; set; } = null; //All Group
         public ICollection<MessageGroup> TargetList { get; set; } = new List<MessageGroup>();
+        public ICollection<MessageDelivery> MessageDeliveries { get; set; } = new List<MessageDelivery>();
     }
 }

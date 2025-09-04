@@ -22,20 +22,20 @@ public class AppDbContext : DbContext
         
         modelBuilder.Entity<User>()
             .HasOne(u => u.Group)
-            .WithMany()
+            .WithMany(g => g.Users)
             .HasForeignKey(u => u.GroupId)
             .OnDelete(DeleteBehavior.Restrict);
         
         
         modelBuilder.Entity<Message>()
             .HasOne(m => m.Sender)
-            .WithMany()
+            .WithMany(u => u.SentMessages)
             .HasForeignKey(m => m.SenderId)
             .OnDelete(DeleteBehavior.Restrict);
         
         modelBuilder.Entity<Message>()
             .HasOne(m => m.Recipient)
-            .WithMany()
+            .WithMany(u => u.RereceivedMessages)
             .HasForeignKey(m => m.RecipientId)
             .OnDelete(DeleteBehavior.Restrict);
         
@@ -45,13 +45,13 @@ public class AppDbContext : DbContext
         
         modelBuilder.Entity<MessageGroup>()
             .HasOne(mg => mg.Message)
-            .WithMany()
+            .WithMany(m => m.TargetList)
             .HasForeignKey(mg => mg.MessageId)
             .OnDelete(DeleteBehavior.Cascade);
         
         modelBuilder.Entity<MessageGroup>()
             .HasOne(mg => mg.Group)
-            .WithMany()
+            .WithMany(g => g.MessageGroups)
             .HasForeignKey(mg => mg.GroupId)
             .OnDelete(DeleteBehavior.Cascade);
         
@@ -61,13 +61,13 @@ public class AppDbContext : DbContext
         
         modelBuilder.Entity<MessageDelivery>()
             .HasOne(md => md.Message)
-            .WithMany()
+            .WithMany(m => m.MessageDeliveries)
             .HasForeignKey(md => md.MessageId)
             .OnDelete(DeleteBehavior.Cascade);
         
         modelBuilder.Entity<MessageDelivery>()
             .HasOne(md => md.User)
-            .WithMany()
+            .WithMany(u => u.MessageDeliveries)
             .HasForeignKey(md => md.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }

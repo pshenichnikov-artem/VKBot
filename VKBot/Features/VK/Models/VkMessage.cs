@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace VKBot.Features.VK.Models;
 
 public class VkMessage
@@ -8,9 +10,14 @@ public class VkMessage
     public List<VkAttachment> Attachments { get; set; } = new();
 }
 
+//public class VkAttachment
+//{
+//    public string Type { get; set; } = string.Empty;
+//    public string Url { get; set; } = string.Empty;
+//    public string? FileName { get; set; }
+//}
 public class VkAttachment
 {
-    public string Type { get; set; } = string.Empty;
-    public string Url { get; set; } = string.Empty;
-    public string? FileName { get; set; }
+    public string Type { get; set; }
+    public JsonElement Payload {  get; set; }
 }
