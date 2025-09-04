@@ -11,13 +11,14 @@ namespace VKBot.Features.Core.Application.Services
         private readonly ISessionService _sessionService;
         private readonly ILogger<MessageProcessor> _logger;
         
-        public MessageProcessor(ISessionService sessionService, ILogger<MessageProcessor> logger)
+        public MessageProcessor(ISessionService sessionService, ILogger<MessageProcessor> logger, IServiceProvider serviceProvider)
         {
             _sessionService = sessionService;
             _logger = logger;
+            StateDecorator.ServiceProvider = serviceProvider;
         }
         
-        public async Task<StateResult?> ProcessMessageAsync(UserMessage message)
+        public async Task<StateResult> ProcessMessageAsync(UserMessage message)
         {
             var session = await _sessionService.GetSessionAsync(message.UserId) ?? new UserSession { UserId = message.UserId };
             
@@ -25,7 +26,7 @@ namespace VKBot.Features.Core.Application.Services
             _logger.LogInformation("Пользователь {UserId} в состоянии {State} отправил сообщение: {Message}", 
                 message.UserId, currentStateType.Name, message.Text);
             
-            var currentState = (StateDecorator)Activator.CreateInstance(currentStateType)!;
+            var currentState = (StateDecorator)StateDecorator.ServiceProvider.GetService(currentStateType)!;
             
             var (nextState, result) = await currentState.ProcessAsync(message, session);
             

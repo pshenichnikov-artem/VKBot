@@ -4,6 +4,8 @@ using VKBot.Features.Core.Application.Interfaces;
 using VKBot.Features.Core.Application.Services;
 using VKBot.Features.Core.Infrastructure.Services;
 using VKBot.Features.Core.Data;
+using VKBot.Features.Core.Application.Commands;
+using VKBot.Features.Core.Domain.Interfaces;
 
 namespace VKBot.Features.Core.Infrastructure
 {
@@ -19,6 +21,12 @@ namespace VKBot.Features.Core.Infrastructure
             
             services.AddScoped<IMessageProcessor, MessageProcessor>();
             services.AddScoped<ISessionService, SessionService>();
+            
+            services.Scan(scan => scan
+                .FromAssemblyOf<BaseState>()
+                .AddClasses(classes => classes.AssignableTo<StateDecorator>())
+                .AsSelf()
+                .WithTransientLifetime());
             
             return services;
         }

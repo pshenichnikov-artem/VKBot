@@ -6,7 +6,7 @@ namespace VKBot.Features.Core.Application.Commands
 {
     public class ExcelState : StateDecorator
     {
-        protected override Dictionary<(string command, UserRole role), Type> Transitions => new();
+        protected override Dictionary<(string command, UserRole? role), Type> Transitions => new();
         
         protected override bool IsLast => true;
         
