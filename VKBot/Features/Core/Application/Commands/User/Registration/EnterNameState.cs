@@ -18,8 +18,7 @@ namespace VKBot.Features.Core.Application.Commands.User.Registration
         
         protected override Dictionary<(string command, UserRole? role), Type> Transitions => new()
         {
-            { ("*", null), typeof(EnterGroupState) },
-            { ("Изменить", UserRole.Student), typeof(EnterGroupState) }
+            { ("*", null), typeof(EnterGroupState) }
         };
 
         protected override async Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)
@@ -28,8 +27,10 @@ namespace VKBot.Features.Core.Application.Commands.User.Registration
             var user = await _context.Users.Include(u => u.Group).FirstOrDefaultAsync(u => u.VkUserId == message.UserId);
 
             if (user?.Group != null)
-                return StateResult.Success($"Вы уже закреплены за группой {user.Group.Name}.\nНажмите 'Изменить' для смены группы или /cancel для отмены.");
-            
+            {
+                return StateResult.Success($"Вы уже закреплены за группой {user.Group.Name}.");
+            }
+
             session.Data["name"] = name;
             return StateResult.Success("Введите вашу группу:");
         }

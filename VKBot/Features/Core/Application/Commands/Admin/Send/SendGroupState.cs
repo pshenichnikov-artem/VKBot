@@ -9,12 +9,14 @@ namespace VKBot.Features.Core.Application.Commands
     {
         protected override Dictionary<(string command, UserRole? role), Type> Transitions => new()
         {
-            { ("*", UserRole.Admin), typeof(SendMessageState) }
+            { ("Все", UserRole.Admin), typeof(SendMessageState) },
+            { ("Потоку", UserRole.Admin), typeof(EnterStreamState) },
+            { ("Группам", UserRole.Admin), typeof(EnterGroupsState) }
         };
         
         protected override Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)
         {
-            return Task.FromResult(StateResult.Success("Выберите группу"));
+            return Task.FromResult(StateResult.Success("Кому отправить сообщение?\n\nНажмите:\n- 'Все' - всем студентам\n- 'Потоку' - конкретному потоку\n- 'Группам' - конкретным группам"));
         }
     }
 }

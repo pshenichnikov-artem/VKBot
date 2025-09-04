@@ -5,22 +5,17 @@ using VKBot.Features.Core.Enums;
 
 namespace VKBot.Features.Core.Application.Commands
 {
-    public class SendMessageState : StateDecorator
+    public class SaveStreamState : StateDecorator
     {
         protected override Dictionary<(string command, UserRole? role), Type> Transitions => new()
         {
-            { ("*", UserRole.Admin), typeof(SendCompleteState) }
+            { ("*", UserRole.Admin), typeof(SendMessageState) }
         };
         
         protected override Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)
         {
-            if (!session.Data.ContainsKey("sendType"))
-            {
-                session.Data["sendType"] = "all";
-                return Task.FromResult(StateResult.Success("Введите ваше сообщение:"));
-            }
-                
-            session.Data["message"] = message.Text.Trim();
+            session.Data["sendType"] = "stream";
+            session.Data["stream"] = message.Text.Trim();
             return Task.FromResult(StateResult.Success("Введите ваше сообщение:"));
         }
     }
