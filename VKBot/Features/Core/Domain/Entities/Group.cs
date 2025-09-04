@@ -9,9 +9,9 @@ namespace VKBot.Features.Core.Domain.Entities
         [Required]
         public string Name { get; set; } //Название группы (ИС/б-22-1-о
         [Required]
-        public string Cohort {  get; set; } // Поток (ИС/б-22-з)
+        public string Cohort {  get; set; } // Поток (ИС/б-22-з) // Вычисляемое
         [Required]
-        short GroupNumber { get; set; }
-
+        public short GroupNumber { get; set; } //Вычисляемое
+        public List<User> Users { get; set; } = new List<User>();
     }
 }

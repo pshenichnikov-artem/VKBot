@@ -11,7 +11,7 @@ namespace VKBot.Features.Core.Domain.Entities
         [Required]
         public string FullName { get; set; }
         [Required]
-        public UserRole Role { get; set; } = UserRole.Student;
+        public string Role { get; set; }
         [Required]
         public bool IsConfirmed { get; set; } = false;
         public bool IsBlocked { get; set; } = false;

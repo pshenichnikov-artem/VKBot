@@ -1,9 +1,12 @@
 ﻿namespace VKBot.Features.Core.Domain.Enums
 {
-    public enum EventSendStatus
+    public enum MessageStatus
     {
         Pending,
+        Sent,
+        Error,
+        Read,
         Delivered,
-        Error
+        Replied
     }
 }
