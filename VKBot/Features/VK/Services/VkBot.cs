@@ -5,15 +5,14 @@ using VKBot.Features.VK.Models;
 
 namespace VKBot.Features.VK.Services;
 
-/// <summary>
-/// Класс для проверки новых сообщений в вк боте и отправки сообщений
-/// </summary>
 public class VkBot : IVkBot
 {
     private readonly HttpClient _httpClient;
     private readonly UpdateParseService _parseService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<VkBot> _logger;
+    private readonly string _accessToken;
+    private readonly string _groupId;
 
     public VkBot(HttpClient httpClient, IConfiguration configuration, ILogger<VkBot> logger, UpdateParseService parseService)
     {
@@ -21,57 +20,40 @@ public class VkBot : IVkBot
         _configuration = configuration;
         _logger = logger;
         _parseService = parseService;
+        _accessToken = _configuration["VK:AccessToken"] ?? throw new InvalidOperationException("VK AccessToken не настроен");
+        _groupId = _configuration["VK:GroupId"] ?? throw new InvalidOperationException("VK GroupId не настроен");
     }
 
     public async Task<LongPollServer?> GetLongPollServerAsync()
     {
-        var accessToken = _configuration["VK:AccessToken"];
-        var groupId = _configuration["VK:GroupId"];
-        if (string.IsNullOrWhiteSpace(accessToken))
-        {
-            _logger.LogError("VK AccessToken is missing.");
-            return null;
-        }
-
-        var url = $"https://api.vk.com/method/messages.getLongPollServer?access_token={accessToken}&v=5.131&group_id={groupId}";
+        var url = $"https://api.vk.com/method/messages.getLongPollServer?access_token={_accessToken}&v=5.131&group_id={_groupId}";
 
         try
         {
             var response = await _httpClient.GetStringAsync(url);
-            _logger.LogError("VK raw response: " + response);
-
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                WriteIndented = true
-            };
-            var result = JsonSerializer.Deserialize<VkApiResponse<LongPollServer>>(response, options);
+            var result = JsonSerializer.Deserialize<VkApiResponse<LongPollServer>>(response, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (result?.Response == null)
             {
-                _logger.LogError("VK API returned null LongPollServer.");
+                _logger.LogError("[VkBot] Не удалось получить LongPoll сервер");
                 return null;
             }
-            _logger.LogError($"VK Long Poll: server={result.Response.Server}, key={result.Response.Key}, ts={result.Response.Ts}");
+            
             return result.Response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get LongPollServer.");
+            _logger.LogError(ex, "[VkBot] Ошибка получения LongPoll сервера");
             return null;
         }
     }
 
-    /// <summary>
-    /// Получить новые события
-    /// </summary>
     public async Task<List<VkMessage>> GetUpdatesAsync(LongPollServer server)
     {
-        var messages = new List<VkMessage>();
-        if (server == null || string.IsNullOrEmpty(server.Server) || string.IsNullOrEmpty(server.Key))
+        if (server?.Server == null || server.Key == null)
         {
-            _logger.LogError("LongPollServer is not properly initialized.");
-            return messages;
+            _logger.LogError("[VkBot] LongPoll сервер не инициализирован");
+            return new List<VkMessage>();
         }
 
         var url = $"https://{server.Server}?act=a_check&key={server.Key}&ts={server.Ts}&wait=25";
@@ -79,64 +61,53 @@ public class VkBot : IVkBot
         try
         {
             var response = await _httpClient.GetStringAsync(url);
-            _logger.LogError("VK Long Poll raw response: " + response);
-            if(response == null)
-            {
-                _logger.LogError("Long Poll Response Json its null");
-                return messages;
-            }
-
-            _logger.LogError("1");
             var result = JsonSerializer.Deserialize<LongPollResponse>(response);
-            _logger.LogWarning($"VK LongPoll failed={result.Failed}");
-            if (result.Failed > 0)
+            
+            if (result == null)
             {
-                _logger.LogWarning($"VK LongPoll failed={result.Failed}. Reinitializing...");
-                server = await GetLongPollServerAsync();
+                _logger.LogError("[VkBot] Пустой ответ от LongPoll");
                 return new List<VkMessage>();
             }
 
-            if (result == null)
+            if (result.Failed > 0)
             {
-                _logger.LogError("Long Poll returned null");
+                _logger.LogWarning("[VkBot] LongPoll ошибка {Failed}", result.Failed);
+                return new List<VkMessage>();
             }
 
             server.Ts = result.Ts;
-            _logger.LogError("2 " + server.Ts);
-            _logger.LogError("Я тут");
-
-            messages = await _parseService.GetNewMessages(result.Updates);
+            var messages = await _parseService.GetNewMessages(result.Updates);
+            
+            if (messages.Count > 0)
+            {
+                _logger.LogInformation("[VkBot] Получено {Count} новых сообщений", messages.Count);
+            }
 
             return messages;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error while polling VK updates.");
-            return messages;
+            _logger.LogError(ex, "[VkBot] Ошибка получения обновлений");
+            return new List<VkMessage>();
         }
     }
 
-    /// <summary>
-    /// Отправить сообщение пользователю
-    /// </summary>
     public async Task SendMessageAsync(long userId, string message)
     {
-        var accessToken = _configuration["VK:AccessToken"];
-        if (string.IsNullOrWhiteSpace(accessToken))
-        {
-            _logger.LogError("VK AccessToken is missing.");
-            return;
-        }
-
-        var url = $"https://api.vk.com/method/messages.send?user_id={userId}&message={Uri.EscapeDataString(message)}&access_token={accessToken}&v=5.131&random_id={Random.Shared.Next()}";
+        var url = $"https://api.vk.com/method/messages.send?user_id={userId}&message={Uri.EscapeDataString(message)}&access_token={_accessToken}&v=5.131&random_id={Random.Shared.Next()}";
 
         try
         {
-            await _httpClient.GetStringAsync(url);
+            var response = await _httpClient.GetStringAsync(url);
+            
+            if (response.Contains("\"error\""))
+            {
+                _logger.LogError("[VkBot] Ошибка отправки сообщения пользователю {UserId}. Ответ: {Response}", userId, response);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"Failed to send message to user {userId}.");
+            _logger.LogError(ex, "[VkBot] Ошибка отправки сообщения пользователю {UserId}", userId);
         }
     }
 }

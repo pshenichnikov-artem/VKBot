@@ -8,7 +8,8 @@ public static class VkFeatureExtensions
     public static IServiceCollection AddVkFeature(this IServiceCollection services)
     {
         services.AddHttpClient();
-        services.AddScoped<IVkBot, VkBot>();
+        services.AddSingleton<UpdateParseService>();
+        services.AddSingleton<IVkBot, VkBot>();
         
         return services;
     }

@@ -1,14 +1,14 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using VKBot.Features.VK.Models;
 
 namespace VKBot.Features.VK.Services
 {
     public class UpdateParseService
     {
-        private readonly ILogger _logger;
+        private readonly ILogger<UpdateParseService> _logger;
         private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
-        public UpdateParseService (ILogger logger, IConfiguration configuration, HttpClient httpClient)
+        public UpdateParseService (ILogger<UpdateParseService> logger, IConfiguration configuration, HttpClient httpClient)
         {
             _logger = logger;
             _configuration = configuration;
@@ -37,6 +37,13 @@ namespace VKBot.Features.VK.Services
                         _logger.LogWarning($"VK update too short: count={array.Count}");
                         continue;
                     }
+                    
+                    var flags = array[2].GetInt32();
+                    if ((flags & 2) != 0) // Исходящее сообщение
+                    {
+                        continue;
+                    }
+                    
                     var fromId = array[3].GetInt64();
                     var text = array[6].GetString() ?? string.Empty;
 

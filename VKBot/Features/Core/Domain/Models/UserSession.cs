@@ -7,11 +7,11 @@ namespace VKBot.Features.Core.Domain.Models
         public long UserId { get; set; }
         
         private Dictionary<string, object> _data = new();
-        private Type? _currentState;
+        private string? _currentStateName;
         private string? _lastResponse;
         
-        public Type? GetCurrentState() => _currentState;
-        public void SetCurrentState(Type? state) => _currentState = state;
+        public Type? GetCurrentState() => string.IsNullOrEmpty(_currentStateName) ? null : Type.GetType(_currentStateName);
+        public void SetCurrentState(Type? state) => _currentStateName = state?.AssemblyQualifiedName;
         
         public string? GetLastResponse() => _lastResponse;
         public void SetLastResponse(string? response) => _lastResponse = response;

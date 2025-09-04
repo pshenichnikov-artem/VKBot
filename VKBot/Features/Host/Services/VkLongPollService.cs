@@ -37,9 +37,7 @@ public class VkLongPollService : BackgroundService
                     {
                         UserId = vkMessage.UserId,
                         Text = vkMessage.Text,
-                        //Пока всегда пусто, не получаем его
                         ReplyToMessageId = vkMessage.ReplyToMessageId,
-                        //Вынести логику заполнения вложений в другой метод. По сути она не то, чтобы нужна.
                         Attachments = vkMessage.Attachments.Select(a =>
                         {
                             var attachment = new MessageAttachment { Type = a.Type };
@@ -78,7 +76,6 @@ public class VkLongPollService : BackgroundService
                                         break;
 
                                     default:
-                                        // логировать неизвестный тип
                                         break;
                                 }
                             }
