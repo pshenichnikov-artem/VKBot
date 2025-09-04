@@ -1,4 +1,4 @@
-using VKBot.Features.Core.Domain.Entities;
+using VKBot.Features.Core.Domain.Models;
 
 namespace VKBot.Features.Core.Application.Interfaces;
 

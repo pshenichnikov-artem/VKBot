@@ -31,6 +31,7 @@ services:
       ConnectionStrings__PostgreSQL: "${POSTGRES_CONNECTION}"
       ConnectionStrings__Redis: "${REDIS_CONNECTION}"
       VK__AccessToken: "${VK_ACCESS_TOKEN}"
+      VK__GroupId: "${VK_GROUP_ID}"
       ASPNETCORE_URLS: "http://+:8080"
     depends_on:
       - postgres

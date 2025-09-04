@@ -1,6 +1,6 @@
 using System.Text.Json;
 using StackExchange.Redis;
-using VKBot.Features.Core.Domain.Entities;
+using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Application.Interfaces;
 
 namespace VKBot.Features.Core.Infrastructure.Services;
@@ -27,7 +27,7 @@ public class SessionService : ISessionService
 
     public async Task SetSessionAsync(UserSession session)
     {
-        var key = $"session:{session.VkUserId}";
+        var key = $"session:{session.UserId}";
         var value = JsonSerializer.Serialize(session);
         await _database.StringSetAsync(key, value, _expiry);
     }
