@@ -1,4 +1,5 @@
 using VKBot.Features.Core.Domain.Interfaces;
+using VKBot.Features.Core.Domain.Models;
 
 namespace VKBot.Features.Core.Application.Commands
 {

@@ -1,5 +1,6 @@
 using VKBot.Features.Core.Domain.Interfaces;
 
+using VKBot.Features.Core.Domain.Models;
 namespace VKBot.Features.Core.Application.Commands
 {
     public class SendCompleteState : StateDecorator
