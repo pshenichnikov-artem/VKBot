@@ -51,8 +51,11 @@ namespace VKBot.Features.Core.Application.Commands.Admin.Confirmation
                 
             user.IsConfirmed = true;
             await _context.SaveChangesAsync();
+
+            var keyboard = CreateKeyboardFromCommands(message.UserId);
+
             
-            return StateResult.Success($"Пользователь {user.FullName} подтвержден.\nВведите имя следующего пользователя или 'Закончить':");
+            return StateResult.Success($"Пользователь {user.FullName} подтвержден.\nВведите имя следующего пользователя или 'Закончить':", keyboard: keyboard);
         }
     }
 }

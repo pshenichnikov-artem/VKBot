@@ -52,7 +52,10 @@ namespace VKBot.Features.Core.Application.Commands.Admin.Confirmation
                 return StateResult.Success("Нет пользователей, ожидающих подтверждения.");
                 
             var usersList = string.Join("\n", pendingUsers.Select(u => $"{u.FullName} - {u.Group?.Name}"));
-            return StateResult.Success($"Пользователи, ожидающие подтверждения:\n{usersList}\n\nНажмите 'Подтвердить всех' или 'Подтвердить пользователя'");
+
+            var keyboard = CreateKeyboardFromCommands(message.UserId);
+
+            return StateResult.Success($"Пользователи, ожидающие подтверждения:\n{usersList}\n\nНажмите 'Подтвердить всех' или 'Подтвердить пользователя'", keyboard: keyboard);
         }
     }
 }

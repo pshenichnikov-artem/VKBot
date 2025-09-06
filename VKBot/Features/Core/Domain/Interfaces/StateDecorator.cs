@@ -4,6 +4,7 @@ using VKBot.Features.Core.Domain.Enums;
 using Serilog;
 using VKBot.Features.Core.Enums;
 using Microsoft.Extensions.DependencyInjection;
+using VKBot.Features.VK.Models;
 
 namespace VKBot.Features.Core.Domain.Interfaces
 {
@@ -109,6 +110,33 @@ namespace VKBot.Features.Core.Domain.Interfaces
         {
             // TODO: реализовать проверку роли через сервис
             return userId == 651565729 ? UserRole.Admin : UserRole.Student;
+        }
+        
+        protected VkKeyboard? CreateKeyboardFromCommands(long userId)
+        {
+            var userRole = GetUserRole(userId);
+            var commands = Transitions.Keys
+                .Where(k => k.command != "*" && k.command[0] != '/' && (k.role == null || k.role == userRole))
+                .Select(k => k.command)
+                .Distinct()
+                .ToList();
+                
+            if (commands.Count == 0) return null;
+            
+            var buttons = commands.Select(cmd => new List<VkButton>
+            {
+                new()
+                {
+                    Action = new VkButtonAction { Label = cmd },
+                    Color = "secondary"
+                }
+            }).ToList();
+            
+            return new VkKeyboard
+            {
+                Inline = true,
+                Buttons = buttons
+            };
         }
     }
 }

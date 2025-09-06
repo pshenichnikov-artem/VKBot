@@ -32,12 +32,11 @@ namespace VKBot.Features.Core.Application.Commands
             { ("/questions", UserRole.Admin), typeof(UnansweredStudentsState) },
             { ("/confirm", UserRole.Admin), typeof(PendingMessagesState) },
             { ("/addGroup", UserRole.Admin), typeof(EnterGroupNameState) },
-            { ("/deleteGroup", UserRole.Admin), typeof(EnterDeleteGroupNameState) }
-        }; 
+            { ("/deleteGroup", UserRole.Admin), typeof(EnterDeleteGroupNameState) },
 
             { ("/test", UserRole.Student), typeof(TestState) },
             { ("/test", UserRole.Admin), typeof(TestStateAdmin) }
-        };
+        }; 
         
         protected override Task<StateResult> ExecuteAsync(UserMessage message, UserSession session)
         {

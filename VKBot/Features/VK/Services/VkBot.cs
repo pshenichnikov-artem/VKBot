@@ -50,7 +50,7 @@ public class VkBot : IVkBot
         }
     }
 
-    public async Task<List<VkMessageItem>> GetUpdatesAsync(LongPollServer server)
+    public async Task<List<VkMessageItem>> GetUpdatesAsync(LongPollServer? server)
     {
         if (server?.Server == null || server.Key == null)
         {
@@ -74,6 +74,7 @@ public class VkBot : IVkBot
             if (result.Failed > 0)
             {
                 _logger.LogWarning("[VkBot] LongPoll ошибка {Failed}", result.Failed);
+                server = await GetLongPollServerAsync();
                 return new List<VkMessageItem>();
             }
 
