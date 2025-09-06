@@ -1,4 +1,5 @@
-using VKBot.Features.VK.Models;
+using VKBot.Features.Core.Domain.Enums;
+using VKBot.Features.VK.Domain.Models;
 
 namespace VKBot.Features.Core.Domain.Models;
 
@@ -9,12 +10,16 @@ public class StateResult
     public long? ReplyToMessageId { get; set; }
     public VkKeyboard? Keyboard { get; set; }
     public bool IsSuccess { get; set; } = true;
+    public StateAction Action { get; set; } = StateAction.End;
+    public Type? NextStateType { get; set; }
     
-    public static StateResult Success(string? text = null, long? replyToMessageId = null, List<StateAttachment>? attachments = null, VkKeyboard? keyboard = null)
+    public static StateResult Success(string? text = null, StateAction action = StateAction.End, Type? nextStateType = null, long? replyToMessageId = null, List<StateAttachment>? attachments = null, VkKeyboard? keyboard = null)
     {
         return new StateResult
         {
             Text = text,
+            Action = action,
+            NextStateType = nextStateType,
             ReplyToMessageId = replyToMessageId,
             Attachments = attachments ?? new List<StateAttachment>(),
             Keyboard = keyboard,
@@ -27,6 +32,7 @@ public class StateResult
         return new StateResult
         {
             Text = errorText,
+            Action = StateAction.End,
             IsSuccess = false
         };
     }

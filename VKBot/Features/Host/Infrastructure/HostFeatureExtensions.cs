@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.Host.Services;
 
 namespace VKBot.Features.Host.Infrastructure;

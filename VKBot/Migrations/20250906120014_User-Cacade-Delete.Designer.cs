@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using VKBot.Features.Core.Data;
@@ -11,9 +12,11 @@ using VKBot.Features.Core.Data;
 namespace VKBot.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250906120014_User-Cacade-Delete")]
+    partial class UserCacadeDelete
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -54,29 +57,24 @@ namespace VKBot.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<bool>("EnableReminder")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastReminderSent")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Payload")
+                    b.Property<string>("MessageType")
+                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long?>("ReplyToMessageId")
+                    b.Property<long?>("RecipientId")
                         .HasColumnType("bigint");
 
                     b.Property<long?>("SenderId")
                         .HasColumnType("bigint");
 
-                    b.Property<long?>("UserVkUserId")
-                        .HasColumnType("bigint");
+                    b.Property<string>("TagerGroup")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SenderId");
+                    b.HasIndex("RecipientId");
 
-                    b.HasIndex("UserVkUserId");
+                    b.HasIndex("SenderId");
 
                     b.ToTable("Messages");
                 });
@@ -86,30 +84,39 @@ namespace VKBot.Migrations
                     b.Property<long>("MessageId")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("RecipientId")
+                    b.Property<long>("UserId")
                         .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("BlockedUntil")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DeliveryStatus")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime?>("DispatchTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
-
                     b.Property<short>("RetryCount")
                         .HasColumnType("smallint");
 
-                    b.Property<bool>("isRead")
-                        .HasColumnType("boolean");
+                    b.HasKey("MessageId", "UserId");
 
-                    b.HasKey("MessageId", "RecipientId");
-
-                    b.HasIndex("RecipientId");
+                    b.HasIndex("UserId");
 
                     b.ToTable("MessageDeliveries");
+                });
+
+            modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.MessageGroup", b =>
+                {
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("GroupId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("MessageId", "GroupId");
+
+                    b.HasIndex("GroupId");
+
+                    b.ToTable("MessageGroups");
                 });
 
             modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.User", b =>
@@ -146,14 +153,17 @@ namespace VKBot.Migrations
 
             modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.Message", b =>
                 {
+                    b.HasOne("VKBot.Features.Core.Domain.Entities.User", "Recipient")
+                        .WithMany("RereceivedMessages")
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("VKBot.Features.Core.Domain.Entities.User", "Sender")
                         .WithMany("SentMessages")
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("VKBot.Features.Core.Domain.Entities.User", null)
-                        .WithMany("RereceivedMessages")
-                        .HasForeignKey("UserVkUserId");
+                    b.Navigation("Recipient");
 
                     b.Navigation("Sender");
                 });
@@ -166,15 +176,34 @@ namespace VKBot.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("VKBot.Features.Core.Domain.Entities.User", "Recipient")
+                    b.HasOne("VKBot.Features.Core.Domain.Entities.User", "User")
                         .WithMany("MessageDeliveries")
-                        .HasForeignKey("RecipientId")
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Message");
 
-                    b.Navigation("Recipient");
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.MessageGroup", b =>
+                {
+                    b.HasOne("VKBot.Features.Core.Domain.Entities.Group", "Group")
+                        .WithMany("MessageGroups")
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VKBot.Features.Core.Domain.Entities.Message", "Message")
+                        .WithMany("TargetList")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.User", b =>
@@ -190,12 +219,16 @@ namespace VKBot.Migrations
 
             modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.Group", b =>
                 {
+                    b.Navigation("MessageGroups");
+
                     b.Navigation("Users");
                 });
 
             modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.Message", b =>
                 {
                     b.Navigation("MessageDeliveries");
+
+                    b.Navigation("TargetList");
                 });
 
             modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.User", b =>

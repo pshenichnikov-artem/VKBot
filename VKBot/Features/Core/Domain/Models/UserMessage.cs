@@ -4,7 +4,6 @@ namespace VKBot.Features.Core.Domain.Models
     {
         public string Text { get; set; } = string.Empty;
         public long UserId { get; set; }
-        public long PeerId { get; set; }
         public long MessageId { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         public long? ReplyToMessageId { get; set; }

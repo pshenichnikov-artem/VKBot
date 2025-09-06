@@ -10,7 +10,6 @@ public class AppDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Group> Groups { get; set; }
     public DbSet<Message> Messages { get; set; }
-    public DbSet<MessageGroup> MessageGroups { get; set; }
     public DbSet<MessageDelivery> MessageDeliveries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -24,7 +23,7 @@ public class AppDbContext : DbContext
             .HasOne(u => u.Group)
             .WithMany(g => g.Users)
             .HasForeignKey(u => u.GroupId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
         
         
         modelBuilder.Entity<Message>()
@@ -33,31 +32,10 @@ public class AppDbContext : DbContext
             .HasForeignKey(m => m.SenderId)
             .OnDelete(DeleteBehavior.Restrict);
         
-        modelBuilder.Entity<Message>()
-            .HasOne(m => m.Recipient)
-            .WithMany(u => u.RereceivedMessages)
-            .HasForeignKey(m => m.RecipientId)
-            .OnDelete(DeleteBehavior.Restrict);
-        
-        modelBuilder.Entity<MessageGroup>()
-            .HasKey(mg => new {mg.MessageId, mg.GroupId});
-        
-        
-        modelBuilder.Entity<MessageGroup>()
-            .HasOne(mg => mg.Message)
-            .WithMany(m => m.TargetList)
-            .HasForeignKey(mg => mg.MessageId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
-        modelBuilder.Entity<MessageGroup>()
-            .HasOne(mg => mg.Group)
-            .WithMany(g => g.MessageGroups)
-            .HasForeignKey(mg => mg.GroupId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
+
         
         modelBuilder.Entity<MessageDelivery>()
-            .HasKey (md => new {md.MessageId, md.UserId});
+            .HasKey (md => new {md.MessageId, md.RecipientId});
         
         modelBuilder.Entity<MessageDelivery>()
             .HasOne(md => md.Message)
@@ -66,9 +44,9 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
         
         modelBuilder.Entity<MessageDelivery>()
-            .HasOne(md => md.User)
+            .HasOne(md => md.Recipient)
             .WithMany(u => u.MessageDeliveries)
-            .HasForeignKey(md => md.UserId)
+            .HasForeignKey(md => md.RecipientId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -13,6 +13,5 @@ namespace VKBot.Features.Core.Domain.Entities
         [Required]
         public short GroupNumber { get; set; }
         public List<User> Users { get; set; } = new List<User>();
-        public ICollection<MessageGroup> MessageGroups { get; set; } = new List<MessageGroup>();
     }
 }

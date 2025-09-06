@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.Core.Application.Interfaces;
 using VKBot.Features.Core.Application.Services;
-using VKBot.Features.Core.Infrastructure.Services;
+using VKBot.Features.Core.Application.States;
 using VKBot.Features.Core.Data;
-using VKBot.Features.Core.Application.Commands;
-using VKBot.Features.Core.Domain.Interfaces;
 
 namespace VKBot.Features.Core.Infrastructure
 {
@@ -16,17 +15,17 @@ namespace VKBot.Features.Core.Infrastructure
             services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(configuration.GetConnectionString("PostgreSQL")));
             
-            services.AddSingleton<IConnectionMultiplexer>(provider =>
-                ConnectionMultiplexer.Connect(configuration.GetConnectionString("Redis")!));
+            services.AddMemoryCache();
+            services.AddScoped<IStateFactory, StateFactory>();
+            services.AddScoped<IStateMachineFactory, StateMachineFactory>();
+            services.AddSingleton<IStateDiscoveryService, StateDiscoveryService>();
             
-            services.AddScoped<IMessageProcessor, MessageProcessor>();
-            services.AddScoped<ISessionService, SessionService>();
-            
+            // Регистрация всех BaseState через Scrutor
             services.Scan(scan => scan
                 .FromAssemblyOf<BaseState>()
-                .AddClasses(classes => classes.AssignableTo<StateDecorator>())
+                .AddClasses(classes => classes.AssignableTo<BaseState>())
                 .AsSelf()
-                .WithTransientLifetime());
+                .WithScopedLifetime());
             
             return services;
         }
