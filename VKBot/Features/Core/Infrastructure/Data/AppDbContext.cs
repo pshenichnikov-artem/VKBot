@@ -48,5 +48,6 @@ public class AppDbContext : DbContext
             .WithMany(u => u.MessageDeliveries)
             .HasForeignKey(md => md.RecipientId)
             .OnDelete(DeleteBehavior.Cascade);
+
     }
 }
