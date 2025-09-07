@@ -19,6 +19,7 @@ namespace VKBot.Features.Core.Infrastructure
             services.AddScoped<IStateFactory, StateFactory>();
             services.AddScoped<IStateMachineFactory, StateMachineFactory>();
             services.AddSingleton<IStateDiscoveryService, StateDiscoveryService>();
+            services.AddScoped<UserNotificationService>();
             
             // Регистрация всех BaseState через Scrutor
             services.Scan(scan => scan

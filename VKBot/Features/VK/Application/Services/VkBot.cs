@@ -35,7 +35,7 @@ public class VkBot : IVkBot
         {
             var response = await _httpClient.GetStringAsync(url);
             var result = JsonSerializer.Deserialize<VkLongPollServerResponse>(response, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
+            
             if (result?.Response == null)
             {
                 _logger.LogError("[VkBot] Не удалось получить LongPoll сервер");
@@ -65,7 +65,7 @@ public class VkBot : IVkBot
         {
             var response = await _httpClient.GetStringAsync(url);
             var result = JsonSerializer.Deserialize<LongPollResponse>(response);
-
+            
             if (result == null)
             {
                 _logger.LogError("[VkBot] Пустой ответ от LongPoll");

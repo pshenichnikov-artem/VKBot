@@ -7,6 +7,7 @@ namespace VKBot.Features.Core.Domain.Models
         public long MessageId { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         public long? ReplyToMessageId { get; set; }
+        public Dictionary<string, object>? Payload { get; set; }
         public List<MessageAttachment> Attachments { get; set; } = new();
     }
 

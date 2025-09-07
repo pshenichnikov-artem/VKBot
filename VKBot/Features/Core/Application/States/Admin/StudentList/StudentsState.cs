@@ -65,7 +65,7 @@ public class StudentsState : BaseState
         {
             var student = students[i];
             var vkLink = $"https://vk.com/id{student.VkUserId}";
-            studentsList += $"{i + 1}. {student.Group?.Name ?? "Без группы"} {student.FullName} VK ID: {student.VkUserId} {vkLink}\n";
+            studentsList += $"{i + 1}. {student.Group?.Name ?? "Без группы"} {student.FullName} VK ID: [{vkLink}|{student.VkUserId}]\n";
         }
         
         var keyboard = VkKeyboard.Create(false, true);

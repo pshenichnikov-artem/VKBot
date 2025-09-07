@@ -18,16 +18,27 @@ public class ExcelState : BaseState
 
     public override string Description => "Генерация Excel файла\nСоздает и отправляет Excel-файл со списком всех подтвержденных пользователей с информацией о группах и контактных данных";
     public override bool IsEntryPoint => true;
-    public override string? Command => "/excel";
+    public override string? Command => "Excel";
     public override UserRole[] AllowedRoles => new[] { UserRole.Admin };
 
     protected override Dictionary<int, Type[]> AvailableStates => new();
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
-        if (message.ReplyToMessageId == null)
+        // Проверяем payload на наличие messageId из кнопки Excel
+        if (message.Payload == null || !message.Payload.TryGetValue("messageId", out var messageIdElement))
         {
-            return StateResult.Success("Команда /excel должна быть ответом на сообщение с событием", StateAction.End);
+            return StateResult.Success("Недоступная функция", StateAction.End);
+        }
+        
+        long eventMessageId;
+        try
+        {
+            eventMessageId = Convert.ToInt64(messageIdElement);
+        }
+        catch
+        {
+            return StateResult.Success("Ошибка обработки кнопки", StateAction.End);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -35,30 +46,30 @@ public class ExcelState : BaseState
         var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
 
         var eventMsg = await context.Messages
-            .FirstOrDefaultAsync(m => m.Id == message.ReplyToMessageId && m.Payload != null && m.Payload.Contains("\"type\":\"event\""));
+            .FirstOrDefaultAsync(m => m.Id == eventMessageId && m.Payload != null);
 
         if (eventMsg == null)
         {
-            return StateResult.Success("Сообщение не является событием", StateAction.End);
+            return StateResult.Success("Сообщение не найдено", StateAction.End);
         }
 
-        var payload = JsonSerializer.Deserialize<JsonElement>(eventMsg.Payload!);
-        var eventTitle = payload.TryGetProperty("title", out var titleElement) ? titleElement.GetString() : "Без заголовка";
+        var eventPayload = JsonSerializer.Deserialize<JsonElement>(eventMsg.Payload!);
+        var eventTitle = eventPayload.TryGetProperty("title", out var titleElement) ? titleElement.GetString() : "Без заголовка";
 
         var deliveries = await context.MessageDeliveries
             .Include(md => md.Recipient)
             .ThenInclude(u => u.Group)
-            .Where(md => md.MessageId == message.ReplyToMessageId)
+            .Where(md => md.MessageId == eventMessageId)
             .ToListAsync();
 
         var responses = await context.Messages
             .Include(m => m.Sender)
-            .Where(m => m.ReplyToMessageId == message.ReplyToMessageId && m.Payload != null && m.Payload.Contains("\"type\":\"event_response\""))
+            .Where(m => m.ReplyToMessageId == eventMessageId && m.Payload != null && m.Payload.Contains("\"type\":\"event_response\""))
             .ToListAsync();
 
         var excelBytes = await CreateExcelReport(eventTitle, deliveries, responses);
         
-        var fileName = $"event_report_{message.ReplyToMessageId}_{DateTime.UtcNow.AddHours(3):yyyyMMdd_HHmmss}.xlsx";
+        var fileName = $"event_report_{eventMessageId}_{DateTime.UtcNow.AddHours(3):yyyyMMdd_HHmmss}.xlsx";
         var filePath = Path.Combine(Directory.GetCurrentDirectory(), "reports", fileName);
         
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);

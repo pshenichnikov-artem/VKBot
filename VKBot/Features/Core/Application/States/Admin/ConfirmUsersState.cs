@@ -7,6 +7,7 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.VK.Domain.Models;
+using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 
 namespace VKBot.Features.Core.Application.States;
@@ -90,6 +91,8 @@ public class ConfirmUsersState : BaseState
             var userIds = _unconfirmedUsers.Select(u => u.VkUserId).ToList();
             var usersToConfirm = await context.Users.Where(u => userIds.Contains(u.VkUserId)).ToListAsync();
             
+            var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
+            
             foreach (var user in usersToConfirm)
             {
                 user.IsConfirmed = true;
@@ -97,6 +100,11 @@ public class ConfirmUsersState : BaseState
             }
             
             await context.SaveChangesAsync();
+            
+            foreach (var user in usersToConfirm)
+            {
+                await notificationService.SendUserConfirmedNotification(user.VkUserId);
+            }
             
             return StateResult.Success($"Количество подтвержденных пользователей: {usersToConfirm.Count}", StateAction.End);
         }
@@ -126,6 +134,7 @@ public class ConfirmUsersState : BaseState
         
         var currentUser = _unconfirmedUsers[_currentUserIndex];
         var dbUser = await context.Users.FirstAsync(u => u.VkUserId == currentUser.VkUserId);
+        var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
         
         switch (action)
         {
@@ -133,10 +142,12 @@ public class ConfirmUsersState : BaseState
                 dbUser.IsConfirmed = true;
                 dbUser.Role = UserRole.Student.ToString();
                 await context.SaveChangesAsync();
+                await notificationService.SendUserConfirmedNotification(dbUser.VkUserId);
                 break;
             case "заблокировать":
                 dbUser.IsBlocked = true;
                 await context.SaveChangesAsync();
+                await notificationService.SendUserBlockedNotification(dbUser.VkUserId);
                 break;
             case "пропустить":
                 break;

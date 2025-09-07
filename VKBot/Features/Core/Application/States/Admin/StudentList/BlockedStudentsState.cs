@@ -6,6 +6,7 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.VK.Domain.Models;
+using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 
 namespace VKBot.Features.Core.Application.States;
@@ -118,6 +119,9 @@ public class BlockedStudentsState : BaseState
         
         student.IsBlocked = false;
         await context.SaveChangesAsync();
+        
+        var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
+        await notificationService.SendUserUnblockedNotification(student.VkUserId);
         
         return StateResult.Success($"Студент {student.FullName} разблокирован", StateAction.End);
     }

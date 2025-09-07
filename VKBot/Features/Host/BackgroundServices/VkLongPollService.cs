@@ -59,6 +59,7 @@ public class VkLongPollService : BackgroundService
                         MessageId = vkMessage.Id,
                         Text = vkMessage.Text,
                         ReplyToMessageId = vkMessage.ReplyMessage?.Id,
+                        Payload = ConvertJsonElementToDictionary(vkMessage.Payload),
                         Attachments = vkMessage.Attachments.Select(a => new MessageAttachment
                         {
                             Type = a.Type,
@@ -69,8 +70,8 @@ public class VkLongPollService : BackgroundService
                         }).ToList()
                     };
 
-                    _logger.LogInformation("[VkLongPoll] Получено сообщение от {UserId}: '{Text}'", 
-                        vkMessage.FromId, vkMessage.Text);
+                    _logger.LogInformation("[VkLongPoll] Получено сообщение от {UserId}: '{Text}' {Payload}", 
+                        userMessage.UserId, userMessage.Text, userMessage.Payload);
 
                     var stateMachine = stateMachineFactory.GetOrCreate(vkMessage.FromId);
                     
@@ -155,6 +156,44 @@ public class VkLongPollService : BackgroundService
             "doc" when attachment.Doc != null => attachment.Doc.Id,
             "video" when attachment.Video != null => attachment.Video.Id,
             "audio" when attachment.Audio != null => attachment.Audio.Id,
+            _ => null
+        };
+    }
+    
+    private Dictionary<string, object>? ConvertJsonElementToDictionary(JsonElement? jsonElement)
+    {
+        if (!jsonElement.HasValue || jsonElement.Value.ValueKind == JsonValueKind.Null || jsonElement.Value.ValueKind == JsonValueKind.Undefined)
+            return null;
+            
+        try
+        {
+            if (jsonElement.Value.ValueKind == JsonValueKind.String)
+            {
+                var jsonString = jsonElement.Value.GetString();
+                if (!string.IsNullOrEmpty(jsonString))
+                {
+                    var parsedElement = JsonDocument.Parse(jsonString).RootElement;
+                    return ConvertJsonElement(parsedElement) as Dictionary<string, object>;
+                }
+            }
+            return ConvertJsonElement(jsonElement.Value) as Dictionary<string, object>;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    
+    private object? ConvertJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => element.EnumerateObject().ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToArray(),
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
             _ => null
         };
     }

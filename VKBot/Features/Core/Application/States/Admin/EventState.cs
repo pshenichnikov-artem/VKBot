@@ -165,7 +165,11 @@ public class EventState : BaseState
         }
         await context.SaveChangesAsync();
 
-        return StateResult.Success($"Событие отправлено {recipients.Count} получателям на {hours} часов", StateAction.End);
+        var keyboard = VkKeyboard.Create(inline: true);
+        keyboard.AddRow();
+        keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"action\":\"excel\",\"messageId\":{_eventContentMessageId}}}");
+        
+        return StateResult.Success($"Событие отправлено {recipients.Count} получателям на {hours} часов", StateAction.End, keyboard: keyboard);
     }
 
     private async Task<List<User>> GetRecipients(AppDbContext context)
