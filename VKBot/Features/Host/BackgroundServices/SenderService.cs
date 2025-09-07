@@ -14,15 +14,15 @@ namespace VKBot.Features.Host.Services
     public class SenderService : BackgroundService
     {
         private readonly IServiceProvider _serviceProvider;
-        private readonly IVkBot _vkBot;
+
         private readonly ILogger<SenderService> _logger;
 
         private const int DELAY_MS = 1000;
 
-        public SenderService(IServiceProvider serviceProvider, IVkBot vkBot, ILogger<SenderService> logger)
+        public SenderService(IServiceProvider serviceProvider, ILogger<SenderService> logger)
         {
             _serviceProvider = serviceProvider;
-            _vkBot = vkBot;
+
             _logger = logger;
         }
 
@@ -94,7 +94,8 @@ namespace VKBot.Features.Host.Services
                         
                         try
                         {
-                            var messageId = await _vkBot.SendMessageAsync(message.RecipientId, "текст");
+                            var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
+                            var messageId = await vkBot.SendMessageAsync(message.RecipientId, "");
                             message.DeliveryStatus = MessageStatus.Delivered.ToString();
                             message.MessageId = messageId;
                             await context.SaveChangesAsync();

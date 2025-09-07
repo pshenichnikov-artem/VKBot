@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using VKBot.Features.Host.Services;
 using VKBot.Features.VK.Application.Interfaces;
 using VKBot.Features.VK.Application.Services;
 
@@ -11,6 +12,7 @@ public static class VkFeatureExtensions
     {
         services.AddHttpClient();
         services.AddScoped<UpdateParseService>();
+        services.AddScoped<VkLongPollService>();
         services.AddScoped<IVkBot, VkBot>();
         
         return services;

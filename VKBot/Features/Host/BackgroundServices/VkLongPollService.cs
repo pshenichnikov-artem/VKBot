@@ -14,24 +14,28 @@ namespace VKBot.Features.Host.Services;
 public class VkLongPollService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IVkBot _vkBot;
     private readonly ILogger<VkLongPollService> _logger;
 
-    public VkLongPollService(IServiceProvider serviceProvider, IVkBot vkBot, ILogger<VkLongPollService> logger)
+    public VkLongPollService(IServiceProvider serviceProvider, ILogger<VkLongPollService> logger)
     {
         _serviceProvider = serviceProvider;
-        _vkBot = vkBot;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         LongPollServer? server = null;
-        
+        IVkBot? _vkBot = null;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (_vkBot == null)
+                {
+                    var scope = _serviceProvider.CreateAsyncScope();
+                    _vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
+                }
+
                 if (server == null)
                 {
                     server = await _vkBot.GetLongPollServerAsync();
