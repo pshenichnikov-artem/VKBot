@@ -119,10 +119,21 @@ public class VkBot : IVkBot
         
         if (attachments?.Count > 0)
         {
-            var attachmentStrings = attachments
-                .Where(a => a.OwnerId.HasValue && a.MediaId.HasValue)
-                .Select(a => $"{a.Type}{a.OwnerId}_{a.MediaId}")
-                .ToList();
+            var attachmentStrings = new List<string>();
+            
+            foreach (var attachment in attachments)
+            {
+                if (!string.IsNullOrEmpty(attachment.FilePath))
+                {
+                    // Отправляем файл отдельно
+                    await SendDocumentAsync(peerId, attachment.FilePath, message);
+                    return null; // Возвращаем null, так как сообщение уже отправлено
+                }
+                else if (attachment.OwnerId.HasValue && attachment.MediaId.HasValue)
+                {
+                    attachmentStrings.Add($"{attachment.Type}{attachment.OwnerId}_{attachment.MediaId}");
+                }
+            }
             
             if (attachmentStrings.Count > 0)
             {
@@ -162,6 +173,114 @@ public class VkBot : IVkBot
         catch (Exception ex)
         {
             _logger.LogError(ex, "[VkBot] Ошибка отправки сообщения получателю {PeerId}", peerId);
+            return null;
+        }
+    }
+
+    public async Task<long?> ForwardMessageAsync(long peerId, long messageId, string? additionalMessage = null, VkKeyboard? keyboard = null)
+    {
+        var parameters = new List<KeyValuePair<string, string>>
+        {
+            new("peer_id", peerId.ToString()),
+            new("forward_messages", messageId.ToString()),
+            new("access_token", _accessToken),
+            new("v", "5.131"),
+            new("random_id", Random.Shared.Next().ToString())
+        };
+        
+        if (!string.IsNullOrEmpty(additionalMessage))
+        {
+            parameters.Add(new("message", additionalMessage));
+        }
+        
+        if (keyboard != null)
+        {
+            var keyboardJson = JsonSerializer.Serialize(keyboard);
+            parameters.Add(new("keyboard", keyboardJson));
+        }
+
+        try
+        {
+            var content = new FormUrlEncodedContent(parameters);
+            var response = await _httpClient.PostAsync("https://api.vk.com/method/messages.send", content);
+            var responseText = await response.Content.ReadAsStringAsync();
+            
+            var successResponse = JsonSerializer.Deserialize<VkSendMessageResponse>(responseText);
+            return successResponse?.MessageId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[VkBot] Ошибка пересылки сообщения {MessageId} получателю {PeerId}", messageId, peerId);
+            return null;
+        }
+    }
+
+    public async Task<long?> SendDocumentAsync(long peerId, string filePath, string message)
+    {
+        try
+        {
+            // 1. Получаем URL для загрузки
+            var uploadUrlResponse = await _httpClient.GetStringAsync(
+                $"https://api.vk.com/method/docs.getMessagesUploadServer?access_token={_accessToken}&v=5.131&peer_id={peerId}");
+            
+            var uploadUrlData = JsonSerializer.Deserialize<JsonElement>(uploadUrlResponse);
+            var uploadUrl = uploadUrlData.GetProperty("response").GetProperty("upload_url").GetString();
+
+            // 2. Загружаем файл
+            using var form = new MultipartFormDataContent();
+            var fileBytes = await File.ReadAllBytesAsync(filePath);
+            var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            form.Add(fileContent, "file", Path.GetFileName(filePath));
+
+            var uploadResponse = await _httpClient.PostAsync(uploadUrl, form);
+            var uploadResult = await uploadResponse.Content.ReadAsStringAsync();
+            var uploadData = JsonSerializer.Deserialize<JsonElement>(uploadResult);
+            
+            var file = uploadData.GetProperty("file").GetString();
+
+            // 3. Сохраняем документ
+            var saveResponse = await _httpClient.GetStringAsync(
+                $"https://api.vk.com/method/docs.save?access_token={_accessToken}&v=5.131&file={file}&title={Path.GetFileNameWithoutExtension(filePath)}");
+            
+            var saveData = JsonSerializer.Deserialize<JsonElement>(saveResponse);
+            var responseProperty = saveData.GetProperty("response");
+            
+            JsonElement doc;
+            if (responseProperty.TryGetProperty("doc", out var docProperty))
+            {
+                doc = docProperty;
+            }
+            else
+            {
+                // Иногда VK возвращает массив
+                doc = responseProperty[0];
+            }
+            
+            var ownerId = doc.GetProperty("owner_id").GetInt64();
+            var docId = doc.GetProperty("id").GetInt64();
+
+            // 4. Отправляем сообщение с документом
+            var parameters = new List<KeyValuePair<string, string>>
+            {
+                new("peer_id", peerId.ToString()),
+                new("message", message),
+                new("attachment", $"doc{ownerId}_{docId}"),
+                new("access_token", _accessToken),
+                new("v", "5.131"),
+                new("random_id", Random.Shared.Next().ToString())
+            };
+
+            var content = new FormUrlEncodedContent(parameters);
+            var response = await _httpClient.PostAsync("https://api.vk.com/method/messages.send", content);
+            var responseText = await response.Content.ReadAsStringAsync();
+            
+            var successResponse = JsonSerializer.Deserialize<VkSendMessageResponse>(responseText);
+            return successResponse?.MessageId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[VkBot] Ошибка отправки документа {FilePath} получателю {PeerId}", filePath, peerId);
             return null;
         }
     }

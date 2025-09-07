@@ -63,7 +63,9 @@ public class VkLongPollService : BackgroundService
                         {
                             Type = a.Type,
                             Url = GetAttachmentUrl(a),
-                            FileName = GetAttachmentFileName(a)
+                            FileName = GetAttachmentFileName(a),
+                            OwnerId = GetAttachmentOwnerId(a),
+                            MediaId = GetAttachmentMediaId(a)
                         }).ToList()
                     };
 
