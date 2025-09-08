@@ -42,7 +42,8 @@ public class AlertResponseState : BaseState
     {
         if (message.Payload == null 
             || !message.Payload.TryGetValue("messageId", out var messageIdElement)
-            || !message.Payload.TryGetValue("type", out var type) || type.ToString() != "alert")
+            || !message.Payload.TryGetValue("action", out var action) 
+            || action?.ToString() != "alert_response")
         {
             return StateResult.Success("Недоступная функция", StateAction.End);
         }

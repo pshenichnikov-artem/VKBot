@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Caching.Memory;
 using VKBot.Features.Core.Application.Interfaces;
 
-namespace VKBot.Features.Core.Application.Services;
+namespace VKBot.Features.Core.Application.Services.Factory;
 
 public class StateMachineFactory : IStateMachineFactory
 {
