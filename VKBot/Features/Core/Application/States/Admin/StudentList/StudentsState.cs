@@ -16,9 +16,9 @@ public class StudentsState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Управление списком студентов",
-        1 => "Ожидание выбора действия",
-        _ => "Неизвестный шаг"
+        0 => "🎓 Управление студентами",
+        1 => "🎯 Выбор действия",
+        _ => "❓ Неизвестный шаг"
     };
     
     public override bool IsEntryPoint => true;
@@ -36,7 +36,7 @@ public class StudentsState : BaseState
         {
             0 => await ShowStudents(),
             1 => ProcessAction(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => StateResult.Success("❌ Ошибка", StateAction.End)
         };
     }
 
@@ -56,16 +56,16 @@ public class StudentsState : BaseState
             
         if (!students.Any())
         {
-            return StateResult.Success("Список студентов пуст", StateAction.End);
+            return StateResult.Success("😌 Список студентов пуст", StateAction.End);
         }
         
-        var studentsList = "Список студентов:\n";
+        var studentsList = $"🎓 Список студентов ({students.Count}):\n\n";
         
         for (int i = 0; i < students.Count; i++)
         {
             var student = students[i];
             var vkLink = $"https://vk.com/id{student.VkUserId}";
-            studentsList += $"{i + 1}. {student.Group?.Name ?? "Без группы"} {student.FullName} VK ID: [{vkLink}|{student.VkUserId}]\n";
+            studentsList += $"{i + 1}. {student.Group?.Name ?? "Без группы"} {student.FullName} VK ID: [{vkLink}]{student.VkUserId} \n";
         }
         
         var keyboard = VkKeyboard.Create(false, true);
@@ -83,6 +83,6 @@ public class StudentsState : BaseState
         keyboard.AddButton("Изменить", VkButtonColor.Primary);
         keyboard.AddButton("Удалить", VkButtonColor.Negative);
         
-        return StateResult.Success("Неизвестное действие. Доступные: Изменить, Удалить", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success("⚠️ Пожалуйста, используйте кнопки для выбора", StateAction.Stay, keyboard: keyboard);
     }
 }

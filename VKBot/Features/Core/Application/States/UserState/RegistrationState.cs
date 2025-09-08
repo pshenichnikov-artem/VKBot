@@ -18,10 +18,10 @@ public class RegistrationState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Регистрация студента",
-        1 => "Ожидание ввода группы",
-        2 => "Ожидание ввода ФИО",
-        _ => "Неизвестный шаг"
+        0 => $"👋 Регистрация в системе\nПосле регистрации потребуется подтверждение администратора",
+        1 => "🎓 Ввод названия группы",
+        2 => "👤 Ввод ФИО",
+        _ => "❓ Неизвестный шаг"
     };
 
     public override bool IsEntryPoint => true;
@@ -50,11 +50,11 @@ public class RegistrationState : BaseState
 
         if (existingUser != null)
         {
-            return StateResult.Success("Вы уже зарегистрированы. Ожидайте подтверждения от администратора.", StateAction.End);
+            return StateResult.Success("✅ Вы уже зарегистрированы! ⏳ Ожидайте подтверждения от администратора 👨💻", StateAction.End);
         }
 
         _step = 1;
-        return StateResult.Success("Добро пожаловать! Для регистрации введите название вашей группы:", StateAction.Stay);
+        return StateResult.Success("👋 Добро пожаловать!\n\n🎓 Для регистрации введите название вашей группы:\nПример: ПМ/б-22-1-пм", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessGroup(UserMessage message)
@@ -63,7 +63,7 @@ public class RegistrationState : BaseState
 
         if (string.IsNullOrEmpty(_groupName))
         {
-            return StateResult.Success("Название группы не может быть пустым. Введите название группы:", StateAction.Stay);
+            return StateResult.Success("⚠️ Название группы не может быть пустым. Пожалуйста, введите название группы:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -72,11 +72,11 @@ public class RegistrationState : BaseState
         var group = await context.Groups.FirstOrDefaultAsync(g => g.Name == _groupName);
         if (group == null)
         {
-            return StateResult.Success("Группа не найдена. Введите корректное название группы:", StateAction.Stay);
+            return StateResult.Success("❌ Группа не найдена! Пожалуйста, проверьте название и попробуйте снова:", StateAction.Stay);
         }
 
         _step = 2;
-        return StateResult.Success("Введите ваше ФИО:", StateAction.Stay);
+        return StateResult.Success("✅ Отлично! Теперь введите ваше ФИО:\nПример: Иванов Иван Иванович", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessFullName(UserMessage message)
@@ -85,7 +85,7 @@ public class RegistrationState : BaseState
 
         if (string.IsNullOrEmpty(fullName))
         {
-            return StateResult.Success("ФИО не может быть пустым. Введите ваше ФИО:", StateAction.Stay);
+            return StateResult.Success("⚠️ ФИО не может быть пустым. Пожалуйста, введите ваше полное имя:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -106,7 +106,7 @@ public class RegistrationState : BaseState
         context.Users.Add(user);
         await context.SaveChangesAsync();
 
-        return StateResult.Success("Регистрация завершена. Ожидайте подтверждения от администратора.", StateAction.End);
+        return StateResult.Success("✅ Регистрация успешно завершена! 🎉\n\n⏳ Ожидайте подтверждения от администратора 👨💻", StateAction.End);
     }
 
 

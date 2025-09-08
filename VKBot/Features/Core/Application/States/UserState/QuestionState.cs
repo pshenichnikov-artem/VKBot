@@ -14,9 +14,9 @@ namespace VKBot.Features.Core.Application.States.UserState
 
         public override string Description => _step switch
         {
-            0 => "Задать вопрос администратору",
-            1 => "Введите ваш вопрос",
-            _ => "Неизвестный шаг"
+            0 => "❓ Задать вопрос администратору",
+            1 => "✍️ Напишите текст вопроса",
+            _ => "❓ Неизвестный шаг"
         };
 
         public override bool IsEntryPoint => true;
@@ -31,14 +31,14 @@ namespace VKBot.Features.Core.Application.States.UserState
             {
                 0 => AskQuestion(),
                 1 => await ProcessQuestion(message),
-                _ => StateResult.Success("Ошибка", StateAction.End)
+                _ => StateResult.Success("❌ Ошибка", StateAction.End)
             };
         }
 
         private StateResult AskQuestion()
         {
             _step = 1;
-            return StateResult.Success("Введите ваш вопрос:", StateAction.Stay);
+            return StateResult.Success("❓ О чём вы хотите спросить? Напишите ваш вопрос:", StateAction.Stay);
         }
 
         private async Task<StateResult> ProcessQuestion(UserMessage message)
@@ -46,7 +46,7 @@ namespace VKBot.Features.Core.Application.States.UserState
             var messageText = message.Text;
             if (string.IsNullOrEmpty(messageText))
             {
-                return StateResult.Success("Сообщение не может быть пустым. Введите текст:", StateAction.Stay);
+                return StateResult.Success("⚠️ Вопрос не может быть пустым. Пожалуйста, напишите что-нибудь:", StateAction.Stay);
             }
 
             using var scope = _serviceProvider.CreateScope();
@@ -76,7 +76,7 @@ namespace VKBot.Features.Core.Application.States.UserState
             }
             await context.SaveChangesAsync();
 
-            return StateResult.Success($"Ваш вопрос отправлен администраторам ({admins.Count})", StateAction.End);
+            return StateResult.Success($"✅ Ваш вопрос успешно отправлен! 📨\n\n👨💻 Администраторы ({admins.Count} чел.) получат уведомление и ответят в ближайшее время", StateAction.End);
         }
     }
 }

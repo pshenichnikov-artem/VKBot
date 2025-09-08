@@ -77,7 +77,7 @@ public class StateMachine
         {
             _currentStateInstance = null;
             _memoryCache.Remove(_cacheKey);
-            return StateResult.Success("Операция отменена", StateAction.End);
+            return StateResult.Success("❌ Операция отменена", StateAction.End);
         }
 
         if (message.Text == "/help" && _currentStateInstance != null)
@@ -140,7 +140,7 @@ public class StateMachine
         
         if (string.IsNullOrEmpty(command) || _stateDiscoveryService == null)
         {
-            return StateResult.Success("Неизвестная команда");
+            return StateResult.Success("❓ Неизвестная команда");
         }
         
         var matchingState = _stateDiscoveryService.FindStates(isEntryPoint: true, command: command, userRole: userRole).FirstOrDefault();
@@ -167,10 +167,10 @@ public class StateMachine
                 }
             }
             
-            return StateResult.Success($"Неизвестная команда. Доступные команды: {string.Join(", ", commands)}", StateAction.End, keyboard: keyboard);
+            return StateResult.Success($"🤖 Неизвестная команда!\n\n📝 Доступные команды: {string.Join(", ", commands)}", StateAction.End, keyboard: keyboard);
         }
         
-        return StateResult.Success("Ожидайте подтверждения от администратора.");
+        return StateResult.Success("⏳ Ожидайте подтверждения от администратора 👨‍💻");
     }
     
     private async Task<UserRole> GetUserRole(long userId)

@@ -22,10 +22,10 @@ public class GroupState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Управление группами",
-        1 => "Ожидание выбора действия (Добавить/Удалить)",
-        2 => $"Ожидание ввода названия группы для действия '{_action}'",
-        _ => "Неизвестный шаг"
+        0 => "👥 Управление группами",
+        1 => "🎯 Выбор действия",
+        2 => $"📝 Ввод названия группы",
+        _ => "❓ Неизвестный шаг"
     };
     
     public override bool IsEntryPoint => true;
@@ -56,22 +56,23 @@ public class GroupState : BaseState
             .OrderBy(g => g.Name)
             .ToListAsync();
             
-        var groupsList = "Список групп:\n";
+        var groupsList = $"👥 Управление группами\n\n";
         
         VkKeyboard keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Добавить", VkButtonColor.Positive);
+        keyboard.AddButton("➕ Добавить группу", VkButtonColor.Positive);
         if (!groups.Any())
         {
-            groupsList = "Управление группами:\nГруппы отсутствуют";
+            groupsList += "😌 Группы пока не добавлены";
         }
         else
         {
+            groupsList += $"📝 Список групп ({groups.Count}):\n";
             foreach (var group in groups)
             {
-                groupsList += $"{group.Name}\n";
+                groupsList += $"• {group.Name}\n";
             }
-            keyboard.AddButton("Удалить", VkButtonColor.Negative);
+            keyboard.AddButton("❌ Удалить группу", VkButtonColor.Negative);
         }
         
         return StateResult.Success(groupsList, StateAction.Stay, keyboard: keyboard);
@@ -81,27 +82,27 @@ public class GroupState : BaseState
     {
         _action = message.Text?.ToLower().Trim();
         
-        if (_action == "добавить")
+        if (_action?.Contains("добавить") == true)
         {
             _step = 2;
-            return StateResult.Success($"Введите название группы для добавления (формат: ИТ/б-22-1-о):", StateAction.Stay);
+            return StateResult.Success("➕ Введите название новой группы:\nПример: ПМ/б-22-1-пм", StateAction.Stay);
         }
         
-        if (_action == "удалить")
+        if (_action?.Contains("удалить") == true)
         {
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             
             if (!(await context.Groups.AnyAsync()))
             {
-                return StateResult.Success("Список групп пуст", StateAction.End);
+                return StateResult.Success("😌 Список групп пуст", StateAction.End);
             }
             
             _step = 2;
-            return StateResult.Success($"Введите название группы для удаления:", StateAction.Stay);
+            return StateResult.Success("❌ Введите название группы для удаления:", StateAction.Stay);
         }
         
-        return StateResult.Success("Неизвестное действие. Доступные: Добавить, Удалить", StateAction.Stay);
+        return StateResult.Success("⚠️ Пожалуйста, используйте кнопки для выбора", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessGroupName(UserMessage message)
@@ -110,12 +111,12 @@ public class GroupState : BaseState
         
         if (string.IsNullOrEmpty(_groupName))
         {
-            return StateResult.Success("Название группы не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("⚠️ Название группы не может быть пустым:", StateAction.Stay);
         }
 
         if (!IsValidGroupFormat(_groupName))
         {
-            return StateResult.Success("Неверный формат группы. Используйте формат: ИТ/б-22-1-о", StateAction.Stay);
+            return StateResult.Success("❌ Неверный формат группы!\nПравильный формат: ПМ/б-22-1-пм", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -136,7 +137,7 @@ public class GroupState : BaseState
         var existingGroup = await context.Groups.FirstOrDefaultAsync(g => g.Name == groupName);
         if (existingGroup != null)
         {
-            return $"Группа {groupName} уже существует";
+            return $"⚠️ Группа {groupName} уже существует";
         }
         
         var (cohort, groupNumber) = ParseGroupName(groupName);
@@ -150,7 +151,7 @@ public class GroupState : BaseState
         context.Groups.Add(group);
         await context.SaveChangesAsync();
         
-        return $"Группа {groupName} добавлена";
+        return $"✅ Группа {groupName} успешно добавлена! 🎉";
     }
     
     private async Task<string> DeleteGroup(AppDbContext context, string groupName)
@@ -158,13 +159,13 @@ public class GroupState : BaseState
         var group = await context.Groups.FirstOrDefaultAsync(g => g.Name == groupName);
         if (group == null)
         {
-            return $"Группа {groupName} не найдена";
+            return $"❌ Группа {groupName} не найдена";
         }
         
         context.Groups.Remove(group);
         await context.SaveChangesAsync();
         
-        return $"Группа {groupName} удалена";
+        return $"✅ Группа {groupName} успешно удалена";
     }
 
     private bool IsValidGroupFormat(string groupName)

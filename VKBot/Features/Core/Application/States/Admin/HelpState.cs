@@ -10,7 +10,7 @@ public class HelpState : BaseState
 {
     public HelpState(IServiceProvider serviceProvider) : base(serviceProvider) { }
 
-    public override string Description => "Справка по командам\nОтображает список всех доступных команд для администратора с описанием их функционала";
+    public override string Description => "📚 Справка по командам\nПоказывает все доступные команды администратора";
     public override bool IsEntryPoint => true;
     public override string? Command => "/help";
     public override UserRole[] AllowedRoles => new[] { UserRole.Admin };
@@ -22,17 +22,17 @@ public class HelpState : BaseState
         var stateDiscoveryService = _serviceProvider.GetService<IStateDiscoveryService>();
         if (stateDiscoveryService == null)
         {
-            return StateResult.Success("Сервис недоступен", StateAction.End);
+            return StateResult.Success("❌ Сервис временно недоступен", StateAction.End);
         }
 
-        var help = "Доступные команды:\n";
+        var help = "📚 Доступные команды администратора:\n\n";
         var states = stateDiscoveryService.FindStates(isEntryPoint: true, userRole: UserRole.Admin);
         
         foreach (var state in states)
         {
             if (!string.IsNullOrEmpty(state.Command))
             {
-                help += $"{state.Command} -- {state.Description}\n";
+                help += $"• {state.Command} — {state.Description}\n";
             }
         }
 

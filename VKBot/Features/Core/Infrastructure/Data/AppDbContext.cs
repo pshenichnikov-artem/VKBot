@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using VKBot.Features.Core.Domain.Entities;
-using VKBot.Features.Core.Enums;
 
 namespace VKBot.Features.Core.Data;
 
@@ -31,7 +30,6 @@ public class AppDbContext : DbContext
             .HasOne(m => m.Sender)
             .WithMany(u => u.SentMessages)
             .HasForeignKey(m => m.SenderId)
-            //TODO переопределить и сделать ко всем запросом базовый фильтр на проверку флага isDeled
             .OnDelete(DeleteBehavior.Restrict);
         
 
@@ -50,25 +48,6 @@ public class AppDbContext : DbContext
             .WithMany(u => u.MessageDeliveries)
             .HasForeignKey(md => md.RecipientId)
             .OnDelete(DeleteBehavior.Cascade);
-        
-        // Захардкоженные админы
-        modelBuilder.Entity<User>().HasData(
-            new User
-            {
-                VkUserId = 651565729,
-                FullName = "Admin 1",
-                Role = UserRole.Admin.ToString(),
-                IsConfirmed = true,
-                GroupId = null
-            },
-            new User
-            {
-                VkUserId = 562436407,
-                FullName = "Admin 2",
-                Role = UserRole.Admin.ToString(),
-                IsConfirmed = true,
-                GroupId = null
-            }
-        );
+
     }
 }

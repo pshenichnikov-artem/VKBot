@@ -26,9 +26,6 @@ namespace VKBot.Features.Core.Domain.Entities
 
         public short RetryCount { get; set; } = 0;
         public DateTime? DispatchTime { get; set; }
-        public DateTime? SentAt { get; set; }
-        public DateTime? NextRetryAt { get; set; }
-        public DateTime? LastReminderAt { get; set; }
         [Required]
         public string DeliveryStatus { get; set; } = "pending";
         public bool isRead { get; set; }

@@ -32,9 +32,6 @@ public class VkMessageItem
     [JsonPropertyName("text")]
     public string Text { get; set; } = string.Empty;
     
-    [JsonPropertyName("payload")]
-    public JsonElement? Payload { get; set; }
-    
     [JsonPropertyName("attachments")]
     public List<VkAttachmentItem> Attachments { get; set; } = new();
     

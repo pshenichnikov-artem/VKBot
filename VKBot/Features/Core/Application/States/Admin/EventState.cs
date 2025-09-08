@@ -20,15 +20,15 @@ public class EventState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Отправка события",
-        1 => "Выбор получателей",
+        0 => "📢 Создание события\nВыбор групп и отправке события всем в целевых групах",
+        1 => "🎯 Выбор целевых групп",
         2 => _targetType == "groups" 
-            ? "Ввод целевых групп"
-            : "Ввод целевых потоков",
-        3 => "Введите заголовок события",
-        4 => "Отправьте содержимое события",
-        5 => "Введите время для ответов (в часах)",
-        _ => "Неизвестный шаг"
+            ? "📝 Укажите группы"
+            : "📝 Укажите потоки",
+        3 => "📝 Введите заголовок",
+        4 => "📎 Отправьте содержимое",
+        5 => "⏰ Установка времени",
+        _ => "❓ Неизвестный шаг"
     };
 
     public override bool IsEntryPoint => true;
@@ -47,7 +47,7 @@ public class EventState : BaseState
             3 => ProcessTitleStep(message),
             4 => ProcessEventTextStep(message),
             5 => await ProcessEventText(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => StateResult.Success("❌ Ошибка", StateAction.End)
         };
     }
 
@@ -56,11 +56,11 @@ public class EventState : BaseState
         _step = 1;
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Всем", VkButtonColor.Primary);
+        keyboard.AddButton("🌍 Всем студентам", VkButtonColor.Primary);
         keyboard.AddRow();
-        keyboard.AddButton("Потокам", VkButtonColor.Secondary);
-        keyboard.AddButton("Группам", VkButtonColor.Secondary);
-        return StateResult.Success("Выберите кому отправить событие:", StateAction.Stay, keyboard: keyboard);
+        keyboard.AddButton("🎓 Потокам", VkButtonColor.Secondary);
+        keyboard.AddButton("👥 Группам", VkButtonColor.Secondary);
+        return StateResult.Success("🎯 Кому отправить событие?", StateAction.Stay, keyboard: keyboard);
     }
 
     private StateResult ProcessRecipientSelection(UserMessage message)
@@ -68,20 +68,20 @@ public class EventState : BaseState
         var selection = message.Text?.ToLower().Trim();
         switch (selection)
         {
-            case "всем":
+            case var s when s.Contains("всем"):
                 _targetType = "all";
                 _step = 3;
-                return StateResult.Success("Введите заголовок события:", StateAction.Stay);
-            case "потокам":
+                return StateResult.Success("📝 Отлично! Теперь введите заголовок события:", StateAction.Stay);
+            case var s when s.Contains("потокам"):
                 _targetType = "cohort";
                 _step = 2;
-                return StateResult.Success("Введите названия потоков через запятую:", StateAction.Stay);
-            case "группам":
+                return StateResult.Success("🎓 Укажите названия потоков через запятую:\nПример: ПМ/б-22-1, ПМ/б-22-2", StateAction.Stay);
+            case var s when s.Contains("группам"):
                 _targetType = "groups";
                 _step = 2;
-                return StateResult.Success("Введите названия групп через запятую:", StateAction.Stay);
+                return StateResult.Success("👥 Укажите названия групп через запятую:\nПример: ПМ/б-22-1-о, ПМ/б-22-2-о", StateAction.Stay);
             default:
-                return StateResult.Success("Неверный выбор. Используйте кнопки.", StateAction.Stay);
+                return StateResult.Success("⚠️ Пожалуйста, используйте кнопки для выбора", StateAction.Stay);
         }
     }
 
@@ -103,11 +103,11 @@ public class EventState : BaseState
 
         if (!_targetGroups.Any())
         {
-            return StateResult.Success("Неверный формат. Попробуйте еще раз:", StateAction.Stay);
+            return StateResult.Success("❌ Неверный формат! Попробуйте ещё раз с правильным форматом", StateAction.Stay);
         }
 
         _step = 3;
-        return StateResult.Success("Введите заголовок события:", StateAction.Stay);
+        return StateResult.Success("✨ Отлично! Теперь введите заголовок события:", StateAction.Stay);
     }
 
     private string _eventTitle = "";
@@ -118,25 +118,25 @@ public class EventState : BaseState
         _eventTitle = message.Text ?? "";
         if (string.IsNullOrEmpty(_eventTitle))
         {
-            return StateResult.Success("Заголовок не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("⚠️ Заголовок не может быть пустым. Пожалуйста, введите заголовок:", StateAction.Stay);
         }
 
         _step = 4;
-        return StateResult.Success("Отправьте содержимое события:", StateAction.Stay);
+        return StateResult.Success("📎 Отлично! Теперь отправьте содержимое события (текст, фото, документы):", StateAction.Stay);
     }
 
     private StateResult ProcessEventTextStep(UserMessage message)
     {
         _eventContentMessageId = message.MessageId;
         _step = 5;
-        return StateResult.Success("Введите время для ответов (в часах, например: 24):", StateAction.Stay);
+        return StateResult.Success("⏰ Отлично! Укажите сколько часов дать на ответ:\nПример: 24 (сутки), 72 (3 дня)", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessEventText(UserMessage message)
     {
         if (!int.TryParse(message.Text, out var hours) || hours <= 0)
         {
-            return StateResult.Success("Введите корректное количество часов (число больше 0):", StateAction.Stay);
+            return StateResult.Success("❌ Пожалуйста, введите корректное количество часов (целое число больше 0)", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -165,11 +165,7 @@ public class EventState : BaseState
         }
         await context.SaveChangesAsync();
 
-        var keyboard = VkKeyboard.Create(inline: true);
-        keyboard.AddRow();
-        keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"action\":\"excel\",\"messageId\":{_eventContentMessageId}}}");
-        
-        return StateResult.Success($"Событие отправлено {recipients.Count} получателям на {hours} часов", StateAction.End, keyboard: keyboard);
+        return StateResult.Success($"✅ Событие успешно отправлено! 🎉\n\n👥 Получатели: {recipients.Count} чел.\n⏰ Время на ответ: {hours} час.", StateAction.End);
     }
 
     private async Task<List<User>> GetRecipients(AppDbContext context)

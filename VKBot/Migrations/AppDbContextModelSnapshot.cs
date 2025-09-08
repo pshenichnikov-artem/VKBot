@@ -99,17 +99,8 @@ namespace VKBot.Migrations
                     b.Property<long>("Id")
                         .HasColumnType("bigint");
 
-                    b.Property<DateTime?>("LastReminderAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("NextRetryAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<short>("RetryCount")
                         .HasColumnType("smallint");
-
-                    b.Property<DateTime?>("SentAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("isRead")
                         .HasColumnType("boolean");
@@ -133,7 +124,7 @@ namespace VKBot.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long?>("GroupId")
+                    b.Property<long>("GroupId")
                         .HasColumnType("bigint");
 
                     b.Property<bool>("IsBlocked")
@@ -151,24 +142,6 @@ namespace VKBot.Migrations
                     b.HasIndex("GroupId");
 
                     b.ToTable("Users");
-
-                    b.HasData(
-                        new
-                        {
-                            VkUserId = 651565729L,
-                            FullName = "Admin 1",
-                            IsBlocked = false,
-                            IsConfirmed = true,
-                            Role = "Admin"
-                        },
-                        new
-                        {
-                            VkUserId = 562436407L,
-                            FullName = "Admin 2",
-                            IsBlocked = false,
-                            IsConfirmed = true,
-                            Role = "Admin"
-                        });
                 });
 
             modelBuilder.Entity("VKBot.Features.Core.Domain.Entities.Message", b =>
@@ -209,7 +182,8 @@ namespace VKBot.Migrations
                     b.HasOne("VKBot.Features.Core.Domain.Entities.Group", "Group")
                         .WithMany("Users")
                         .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Group");
                 });

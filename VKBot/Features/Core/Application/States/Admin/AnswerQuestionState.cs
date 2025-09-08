@@ -20,11 +20,11 @@ public class AnswerQuestionState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Ответ на вопросы\nПолучение списка вопросов от студентов",
-        1 => "Выберите действие: 'Перейти к ответам' (пошаговое рассмотрение)",
-        2 => "Рассмотрение вопроса. Выберите: 'Ответить', 'Удалить', 'Пропустить'",
-        3 => "Введите ответ на вопрос",
-        _ => "Неизвестный шаг"
+        0 => "❓ Ответы на вопросы\nПросмотр вопросов от студентов",
+        1 => "🎯 Начало обработки\nПереход к пошаговому рассмотрению",
+        2 => "👀 Рассмотрение вопроса\nВыбор действия с вопросом",
+        3 => "✍️ Написание ответа\nСоставление ответа студенту",
+        _ => "❓ Неизвестный шаг"
     };
 
     public override bool IsEntryPoint => true;
@@ -61,34 +61,34 @@ public class AnswerQuestionState : BaseState
 
         if (!_questions.Any())
         {
-            return StateResult.Success("Нет вопросов", StateAction.End);
+            return StateResult.Success("😌 На данный момент нет новых вопросов", StateAction.End);
         }
 
-        var questionsList = $"Вопросы ({_questions.Count}):\n";
+        var questionsList = $"❓ Новые вопросы ({_questions.Count}):\n\n";
         foreach (var question in _questions.Take(5))
         {
             var payload = JsonSerializer.Deserialize<JsonElement>(question.Payload!);
             var text = payload.GetProperty("text").GetString();
-            questionsList += $"От {question.Sender?.FullName}: {text?.Substring(0, Math.Min(50, text.Length))}...\n";
+            questionsList += $"👤 {question.Sender?.FullName}: {text?.Substring(0, Math.Min(50, text.Length))}...\n";
         }
 
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Перейти к ответам", VkButtonColor.Primary);
+        keyboard.AddButton("🚀 Начать отвечать", VkButtonColor.Primary);
 
         return StateResult.Success(questionsList, StateAction.Stay, keyboard: keyboard);
     }
 
     private StateResult ProcessMainAction(UserMessage message)
     {
-        if (message.Text?.ToLower().Trim() == "перейти к ответам")
+        if (message.Text?.ToLower().Contains("отвечать") == true)
         {
             _step = 2;
             _currentQuestionIndex = 0;
             return ShowCurrentQuestion();
         }
 
-        return StateResult.Success("Неизвестное действие", StateAction.Stay);
+        return StateResult.Success("⚠️ Пожалуйста, используйте кнопки для выбора", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessQuestionAction(UserMessage message)
@@ -99,12 +99,12 @@ public class AnswerQuestionState : BaseState
         {
             case "ответить":
                 _step = 3;
-                return StateResult.Success("Введите ответ:", StateAction.Stay);
+                return StateResult.Success("✍️ Напишите ответ на вопрос:", StateAction.Stay);
             case "удалить":
                 await DeleteQuestion();
                 break;
-            case "закончить ответы на вопросы":
-                return StateResult.Success("Ответы на вопросы прекращены", StateAction.End);
+            case var s when s.Contains("завершить"):
+                return StateResult.Success("✅ Ответы на вопросы завершены", StateAction.End);
             case "пропустить":
                 break;
         }
@@ -113,7 +113,7 @@ public class AnswerQuestionState : BaseState
 
         if (_currentQuestionIndex >= _questions.Count)
         {
-            return StateResult.Success("Все вопросы обработаны", StateAction.End);
+            return StateResult.Success("✅ Все вопросы обработаны", StateAction.End);
         }
 
         return ShowCurrentQuestion();
@@ -124,7 +124,7 @@ public class AnswerQuestionState : BaseState
         var answerText = message.Text;
         if (string.IsNullOrEmpty(answerText))
         {
-            return StateResult.Success("Ответ не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("⚠️ Ответ не может быть пустым. Пожалуйста, напишите ответ:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -160,7 +160,7 @@ public class AnswerQuestionState : BaseState
 
         if (_currentQuestionIndex >= _questions.Count)
         {
-            return StateResult.Success("Все вопросы обработаны", StateAction.End);
+            return StateResult.Success("✅ Все вопросы обработаны", StateAction.End);
         }
 
         return ShowCurrentQuestion();
@@ -172,18 +172,16 @@ public class AnswerQuestionState : BaseState
         var payload = JsonSerializer.Deserialize<JsonElement>(question.Payload!);
         var text = payload.GetProperty("text").GetString();
 
-        var questionInfo = $"Вопрос {_currentQuestionIndex + 1} из {_questions.Count}:\n";
-        questionInfo += $"От: {question.Sender?.FullName}\n";
-        questionInfo += $"Текст: {text}";
+        var questionInfo = $"❓ Вопрос {_currentQuestionIndex + 1} из {_questions.Count}\n\n👤 От: {question.Sender?.FullName}\n💬 Текст: {text}";
 
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Ответить", VkButtonColor.Positive);
-        keyboard.AddButton("Удалить", VkButtonColor.Negative);
+        keyboard.AddButton("✍️ Ответить", VkButtonColor.Positive);
+        keyboard.AddButton("❌ Удалить", VkButtonColor.Negative);
         keyboard.AddRow();
-        keyboard.AddButton("Пропустить", VkButtonColor.Primary);
+        keyboard.AddButton("⏭️ Пропустить", VkButtonColor.Primary);
         keyboard.AddRow();
-        keyboard.AddButton("Закончить ответы на вопросы", VkButtonColor.Secondary);
+        keyboard.AddButton("✅ Завершить", VkButtonColor.Secondary);
 
         return StateResult.Success(questionInfo, StateAction.Stay, keyboard: keyboard);
     }

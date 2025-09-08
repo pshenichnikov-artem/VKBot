@@ -21,15 +21,15 @@ public class EventResponseState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Ответ на событие",
-        1 => "Выбор действия",
-        2 => "Просмотр события",
-        3 => "Введите ваш ответ",
-        _ => "Неизвестный шаг"
+        0 => "📨 Просмотр событий",
+        1 => "🎯 Выбор способа просмотра событий (отвеченные, неотвеченные или все)",
+        2 => "👀 Просмотр события",
+        3 => "✍️ Написание ответа",
+        _ => "❓ Неизвестный шаг"
     };
 
     public override bool IsEntryPoint => true;
-    public override string? Command => "/respond";
+    public override string? Command => "/events";
     public override UserRole[] AllowedRoles => new[] { UserRole.Student };
 
     protected override Dictionary<int, Type[]> AvailableStates => new();
@@ -42,7 +42,7 @@ public class EventResponseState : BaseState
             1 => await ProcessMainAction(message),
             2 => await ProcessAction(message),
             3 => await ProcessResponse(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => StateResult.Success("❌ Ошибка", StateAction.End)
         };
     }
 
@@ -71,17 +71,17 @@ public class EventResponseState : BaseState
 
         if (!events.Any())
         {
-            return StateResult.Success("Нет событий", StateAction.End);
+            return StateResult.Success("😌 На данный момент нет актуальных событий", StateAction.End);
         }
 
-        var eventsList = $"На данный момент актуальны {events.Count} событий";
+        var eventsList = $"📨 На данный момент актуально {events.Count} событий";
 
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Неотвеченные", VkButtonColor.Primary);
-        keyboard.AddButton("Отвеченные", VkButtonColor.Secondary);
+        keyboard.AddButton("🔴 Неотвеченные", VkButtonColor.Primary);
+        keyboard.AddButton("✅ Отвеченные", VkButtonColor.Positive);
         keyboard.AddRow();
-        keyboard.AddButton("Все события", VkButtonColor.Secondary);
+        keyboard.AddButton("📄 Все события", VkButtonColor.Secondary);
 
         _step = 1;
         return StateResult.Success(eventsList, StateAction.Stay, keyboard: keyboard);
@@ -93,22 +93,22 @@ public class EventResponseState : BaseState
         
         switch (action)
         {
-            case "неотвеченные":
+            case var s when s.Contains("неотвеченные"):
                 await LoadEvents(message, "unanswered");
                 break;
-            case "отвеченные":
+            case var s when s.Contains("отвеченные"):
                 await LoadEvents(message, "answered");
                 break;
-            case "все события":
+            case var s when s.Contains("все события"):
                 await LoadEvents(message, "all");
                 break;
             default:
-                return StateResult.Success("Неизвестное действие", StateAction.Stay);
+                return StateResult.Success("⚠️ Пожалуйста, используйте кнопки для выбора", StateAction.Stay);
         }
         
         if (_events.Count == 0)
         {
-            return StateResult.Success("Нет событий для просмотра", StateAction.End);
+            return StateResult.Success("😌 Нет событий для просмотра", StateAction.End);
         }
         
         _step = 2;
@@ -122,11 +122,10 @@ public class EventResponseState : BaseState
         
         switch (action)
         {
-            case "ответить":
-            case "изменить ответ":
+            case var s when s.Contains("ответить") || s.Contains("изменить"):
                 _step = 3;
-                return StateResult.Success("Введите ваш ответ:", StateAction.Stay);
-            case "пропустить":
+                return StateResult.Success("✍️ Напишите ваш ответ на событие:", StateAction.Stay);
+            case var s when s.Contains("пропустить"):
                 break;
         }
 
@@ -134,7 +133,7 @@ public class EventResponseState : BaseState
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("Все события просмотрены", StateAction.End);
+            return StateResult.Success("✅ Все события просмотрены! 🎉", StateAction.End);
         }
 
         return await ShowCurrentEvent(message);
@@ -145,7 +144,7 @@ public class EventResponseState : BaseState
         var responseText = message.Text;
         if (string.IsNullOrEmpty(responseText))
         {
-            return StateResult.Success("Ответ не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("⚠️ Ответ не может быть пустым. Пожалуйста, напишите что-нибудь:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -184,7 +183,7 @@ public class EventResponseState : BaseState
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("Ваш ответ сохранен. Все события просмотрены", StateAction.End);
+            return StateResult.Success("✅ Ответ сохранён! Все события просмотрены 🎉", StateAction.End);
         }
 
         return await ShowCurrentEvent(message);
@@ -219,7 +218,7 @@ public class EventResponseState : BaseState
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("Нет событий для просмотра", StateAction.End);
+            return StateResult.Success("😌 Нет событий для просмотра", StateAction.End);
         }
 
         var currentEvent = _events[_currentEventIndex];
@@ -236,10 +235,10 @@ public class EventResponseState : BaseState
         var existingResponse = context.Messages
             .FirstOrDefault(m => m.ReplyToMessageId == currentEvent.Id && m.SenderId == message.UserId);
 
-        var eventInfo = $"Событие {_currentEventIndex + 1} из {_events.Count}: {title}\nОт: {currentEvent.Sender?.FullName}";
+        var eventInfo = $"📨 Событие {_currentEventIndex + 1} из {_events.Count}\n📝 {title}\n👤 От: {currentEvent.Sender?.FullName}";
         
-        var statusText = isExpired ? "\n⚠️ Время для ответов истекло" : $"\n⏰ Ответы до: {deadline.AddHours(3):dd.MM.yyyy HH:mm} МСК";
-        var responseText = existingResponse != null ? "\n\nВаш ответ: " + GetResponseText(existingResponse) : "";
+        var statusText = isExpired ? "\n\n⚠️ Время для ответов истекло" : $"\n\n⏰ Ответы до: {deadline.AddHours(3):dd.MM.yyyy HH:mm} МСК";
+        var responseText = existingResponse != null ? "\n\n💬 Ваш ответ: " + GetResponseText(existingResponse) : "";
 
         await MarkAsRead(message);
 
@@ -247,10 +246,10 @@ public class EventResponseState : BaseState
         if (!isExpired)
         {
             keyboard.AddRow();
-            keyboard.AddButton(existingResponse != null ? "Изменить ответ" : "Ответить", VkButtonColor.Positive);
+            keyboard.AddButton(existingResponse != null ? "✏️ Изменить ответ" : "✍️ Ответить", VkButtonColor.Positive);
         }
         keyboard.AddRow();
-        keyboard.AddButton("Пропустить", VkButtonColor.Secondary);
+        keyboard.AddButton("⏭️ Пропустить", VkButtonColor.Secondary);
 
         await vkBot.ForwardMessageAsync(message.UserId, currentEvent.Id, eventInfo + statusText + responseText, keyboard);
         

@@ -6,7 +6,6 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.VK.Domain.Models;
-using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 
 namespace VKBot.Features.Core.Application.States;
@@ -19,10 +18,10 @@ public class BlockedStudentsState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Отображение заблокированных студентов",
-        1 => "Ожидание выбора действия",
-        2 => "Ожидание ввода VK ID",
-        _ => "Неизвестный шаг"
+        0 => "🚫 Просмотр заблокированных студентов",
+        1 => "🎯 Выбор действия",
+        2 => "📝 Ввод VK ID",
+        _ => "❓ Неизвестный шаг"
     };
     
     public override bool IsEntryPoint => true;
@@ -38,7 +37,7 @@ public class BlockedStudentsState : BaseState
             0 => await ShowBlockedStudents(),
             1 => ProcessAction(message),
             2 => await ProcessVkId(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => StateResult.Success("❌ Ошибка", StateAction.End)
         };
     }
 
@@ -58,10 +57,10 @@ public class BlockedStudentsState : BaseState
             
         if (!blockedStudents.Any())
         {
-            return StateResult.Success("Нет заблокированных студентов", StateAction.End);
+            return StateResult.Success("😌 На данный момент нет заблокированных студентов", StateAction.End);
         }
         
-        var studentsList = "Заблокированные студенты:\n";
+        var studentsList = $"🚫 Заблокированные студенты ({blockedStudents.Count}):\n\n";
         
         foreach (var student in blockedStudents)
         {
@@ -71,8 +70,8 @@ public class BlockedStudentsState : BaseState
         
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Разблокировать", VkButtonColor.Positive);
-        keyboard.AddButton("Отмена", VkButtonColor.Secondary);
+        keyboard.AddButton("✅ Разблокировать", VkButtonColor.Positive);
+        keyboard.AddButton("❌ Отмена", VkButtonColor.Secondary);
         
         return StateResult.Success(studentsList, StateAction.Stay, keyboard: keyboard);
     }
@@ -81,15 +80,15 @@ public class BlockedStudentsState : BaseState
     {
         var action = message.Text?.ToLower().Trim();
         
-        if (action == "разблокировать")
+        if (action?.Contains("разблокировать") == true)
         {
             _step = 2;
-            return StateResult.Success("Введите VK ID студента для разблокировки:", StateAction.Stay);
+            return StateResult.Success("📝 Введите VK ID студента для разблокировки:", StateAction.Stay);
         }
         
-        if (action == "отмена")
+        if (action?.Contains("отмена") == true)
         {
-            return StateResult.Success("Отменено", StateAction.End);
+            return StateResult.Success("❌ Операция отменена", StateAction.End);
         }
         
         var keyboard = VkKeyboard.Create(false, true);
@@ -97,7 +96,7 @@ public class BlockedStudentsState : BaseState
         keyboard.AddButton("Разблокировать", VkButtonColor.Positive);
         keyboard.AddButton("Отмена", VkButtonColor.Secondary);
         
-        return StateResult.Success("Неизвестное действие", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success("⚠️ Пожалуйста, используйте кнопки", StateAction.Stay, keyboard: keyboard);
     }
     
     private async Task<StateResult> ProcessVkId(UserMessage message)
@@ -105,7 +104,7 @@ public class BlockedStudentsState : BaseState
         var input = message.Text?.Trim();
         if (string.IsNullOrEmpty(input) || !long.TryParse(input, out long vkId))
         {
-            return StateResult.Success("Введите корректный VK ID:", StateAction.Stay);
+            return StateResult.Success("❌ Введите корректный VK ID:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -114,15 +113,12 @@ public class BlockedStudentsState : BaseState
         var student = await context.Users.FirstOrDefaultAsync(u => u.VkUserId == vkId && u.IsBlocked);
         if (student == null)
         {
-            return StateResult.Success($"Заблокированный студент с VK ID {vkId} не найден", StateAction.Stay);
+            return StateResult.Success($"❌ Заблокированный студент с VK ID {vkId} не найден", StateAction.Stay);
         }
         
         student.IsBlocked = false;
         await context.SaveChangesAsync();
         
-        var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
-        await notificationService.SendUserUnblockedNotification(student.VkUserId);
-        
-        return StateResult.Success($"Студент {student.FullName} разблокирован", StateAction.End);
+        return StateResult.Success($"✅ Студент {student.FullName} успешно разблокирован! 🎉", StateAction.End);
     }
 }

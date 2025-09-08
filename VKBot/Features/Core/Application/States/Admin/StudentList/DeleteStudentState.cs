@@ -19,10 +19,10 @@ public class DeleteStudentState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Начало удаления студента",
-        1 => "Ожидание ввода имени студента для удаления",
-        2 => $"Подтверждение удаления студента {_studentName}",
-        _ => "Неизвестный шаг"
+        0 => "❌ Начало удаления студента",
+        1 => "📝 Ввод VK ID студента",
+        2 => "⚠️ Подтверждение удаления",
+        _ => "❓ Неизвестный шаг"
     };
     
     public override bool IsEntryPoint => false;
@@ -39,14 +39,14 @@ public class DeleteStudentState : BaseState
             0 => RequestStudentName(),
             1 => await ProcessStudentName(message),
             2 => await ProcessConfirmation(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => StateResult.Success("❌ Ошибка", StateAction.End)
         };
     }
 
     private StateResult RequestStudentName()
     {
         _step = 1;
-        return StateResult.Success("Введите VK ID студента для удаления:", StateAction.Stay);
+        return StateResult.Success("❌ Введите VK ID студента для удаления:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessStudentName(UserMessage message)
@@ -54,7 +54,7 @@ public class DeleteStudentState : BaseState
         var input = message.Text?.Trim();
         if (string.IsNullOrEmpty(input) || !long.TryParse(input, out long vkId))
         {
-            return StateResult.Success("Введите корректный VK ID:", StateAction.Stay);
+            return StateResult.Success("❌ Введите корректный VK ID:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -66,7 +66,7 @@ public class DeleteStudentState : BaseState
             
         if (student == null)
         {
-            return StateResult.Success($"Студент с VK ID {vkId} не найден:", StateAction.Stay);
+            return StateResult.Success($"❌ Студент с VK ID {vkId} не найден", StateAction.Stay);
         }
         
         _studentName = $"{student.Group?.Name} {student.FullName}";
@@ -79,14 +79,14 @@ public class DeleteStudentState : BaseState
         keyboard.AddButton("Да", VkButtonColor.Negative);
         keyboard.AddButton("Нет", VkButtonColor.Secondary);
         
-        return StateResult.Success($"Удалить студента {_studentName}?", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success($"⚠️ Вы уверены, что хотите удалить студента {_studentName}?", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ProcessConfirmation(UserMessage message)
     {
         var response = message.Text?.ToLower().Trim();
         
-        if (response == "да")
+        if (response?.Contains("да") == true)
         {
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -98,12 +98,12 @@ public class DeleteStudentState : BaseState
                 await context.SaveChangesAsync();
             }
             
-            return StateResult.Success($"Студент {_studentName} удален", StateAction.End);
+            return StateResult.Success($"✅ Студент {_studentName} успешно удалён", StateAction.End);
         }
         
-        if (response == "нет")
+        if (response?.Contains("нет") == true)
         {
-            return StateResult.Success("Удаление отменено", StateAction.End);
+            return StateResult.Success("❌ Удаление отменено", StateAction.End);
         }
         
         var keyboard = VkKeyboard.Create(false, true);
@@ -111,6 +111,6 @@ public class DeleteStudentState : BaseState
         keyboard.AddButton("Да", VkButtonColor.Negative);
         keyboard.AddButton("Нет", VkButtonColor.Secondary);
         
-        return StateResult.Success("Выберите действие:", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success("⚠️ Пожалуйста, выберите действие:", StateAction.Stay, keyboard: keyboard);
     }
 }

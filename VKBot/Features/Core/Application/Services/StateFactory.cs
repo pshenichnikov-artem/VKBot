@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.Core.Application.Interfaces;
 using VKBot.Features.Core.Application.States;
 
-namespace VKBot.Features.Core.Application.Services.Factory;
+namespace VKBot.Features.Core.Application.Services;
 
 public class StateFactory : IStateFactory
 {

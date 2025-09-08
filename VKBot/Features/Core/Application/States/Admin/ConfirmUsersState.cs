@@ -7,7 +7,6 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.VK.Domain.Models;
-using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 
 namespace VKBot.Features.Core.Application.States;
@@ -21,10 +20,10 @@ public class ConfirmUsersState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Подтверждение пользователей\nПолучение списка неподтвержденных пользователей, которые зарегистрировались в системе",
-        1 => "Подтверждение пользователей\nВыберите действие: 'Подтвердить всех' (массовое подтверждение) или 'Перейти к подтверждению' (пошаговое рассмотрение)",
-        2 => "Подтверждение пользователей\nПошаговое рассмотрение каждого пользователя. Выберите: 'Подтвердить' (доступ к системе), 'Заблокировать' (запрет доступа), 'Пропустить' (оставить на потом)",
-        _ => "Неизвестный шаг"
+        0 => "✅ Подтверждение новых пользователей\nПросмотр заявок на регистрацию",
+        1 => "🎯 Выбор способа обработки\nМассовое или индивидуальное подтверждение",
+        2 => "👀 Индивидуальное рассмотрение\nПошаговое принятие решений по каждому пользователю",
+        _ => "❓ Неизвестный шаг"
     };
     
     public override bool IsEntryPoint => true;
@@ -40,7 +39,7 @@ public class ConfirmUsersState : BaseState
             0 => await ShowUnconfirmedUsers(),
             1 => await ProcessMainAction(message),
             2 => await ProcessUserConfirmation(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => StateResult.Success("❌ Ошибка", StateAction.End)
         };
     }
 
@@ -60,21 +59,21 @@ public class ConfirmUsersState : BaseState
             
         if (!_unconfirmedUsers.Any())
         {
-            return StateResult.Success("Нет неподтвержденных пользователей", StateAction.End);
+            return StateResult.Success("😌 На данный момент нет новых заявок на регистрацию", StateAction.End);
         }
         
-        var usersList = "Неподтвержденные пользователи:\n";
+        var usersList = $"📝 Новые заявки на регистрацию ({_unconfirmedUsers.Count}):\n\n";
         
         foreach (var user in _unconfirmedUsers)
         {
-            usersList += $"{user.Group?.Name ?? "Без группы"} {user.FullName} ID: {user.VkUserId}\n";
+            usersList += $"🎓 {user.Group?.Name ?? "Без группы"} — {user.FullName}\n";
         }
         
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Подтвердить всех", VkButtonColor.Positive);
+        keyboard.AddButton("✅ Подтвердить всех", VkButtonColor.Positive);
         keyboard.AddRow();
-        keyboard.AddButton("Перейти к подтверждению", VkButtonColor.Primary);
+        keyboard.AddButton("👀 Рассмотреть по одному", VkButtonColor.Primary);
         
         return StateResult.Success(usersList, StateAction.Stay, keyboard: keyboard);
     }
@@ -83,15 +82,13 @@ public class ConfirmUsersState : BaseState
     {
         var action = message.Text?.ToLower().Trim();
         
-        if (action == "подтвердить всех")
+        if (action?.Contains("подтвердить всех") == true)
         {
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             
             var userIds = _unconfirmedUsers.Select(u => u.VkUserId).ToList();
             var usersToConfirm = await context.Users.Where(u => userIds.Contains(u.VkUserId)).ToListAsync();
-            
-            var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
             
             foreach (var user in usersToConfirm)
             {
@@ -101,15 +98,10 @@ public class ConfirmUsersState : BaseState
             
             await context.SaveChangesAsync();
             
-            foreach (var user in usersToConfirm)
-            {
-                await notificationService.SendUserConfirmedNotification(user.VkUserId);
-            }
-            
-            return StateResult.Success($"Количество подтвержденных пользователей: {usersToConfirm.Count}", StateAction.End);
+            return StateResult.Success($"✅ Все пользователи успешно подтверждены! 🎉\n\n👥 Подтверждено: {usersToConfirm.Count} чел.", StateAction.End);
         }
         
-        if (action == "перейти к подтверждению")
+        if (action?.Contains("рассмотреть") == true)
         {
             _step = 2;
             _currentUserIndex = 0;
@@ -118,11 +110,11 @@ public class ConfirmUsersState : BaseState
         
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Подтвердить всех", VkButtonColor.Positive);
+        keyboard.AddButton("✅ Подтвердить всех", VkButtonColor.Positive);
         keyboard.AddRow();
-        keyboard.AddButton("Перейти к подтверждению", VkButtonColor.Primary);
+        keyboard.AddButton("👀 Рассмотреть по одному", VkButtonColor.Primary);
         
-        return StateResult.Success("Неизвестное действие", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success("⚠️ Пожалуйста, используйте кнопки для выбора", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ProcessUserConfirmation(UserMessage message)
@@ -134,22 +126,19 @@ public class ConfirmUsersState : BaseState
         
         var currentUser = _unconfirmedUsers[_currentUserIndex];
         var dbUser = await context.Users.FirstAsync(u => u.VkUserId == currentUser.VkUserId);
-        var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
         
         switch (action)
         {
-            case "подтвердить":
+            case var s when s.Contains("подтвердить"):
                 dbUser.IsConfirmed = true;
                 dbUser.Role = UserRole.Student.ToString();
                 await context.SaveChangesAsync();
-                await notificationService.SendUserConfirmedNotification(dbUser.VkUserId);
                 break;
-            case "заблокировать":
+            case var s when s.Contains("заблокировать"):
                 dbUser.IsBlocked = true;
                 await context.SaveChangesAsync();
-                await notificationService.SendUserBlockedNotification(dbUser.VkUserId);
                 break;
-            case "пропустить":
+            case var s when s.Contains("пропустить"):
                 break;
         }
         
@@ -157,7 +146,7 @@ public class ConfirmUsersState : BaseState
         
         if (_currentUserIndex >= _unconfirmedUsers.Count)
         {
-            return StateResult.Success("Все пользователи обработаны", StateAction.End);
+            return StateResult.Success("✅ Все пользователи обработаны! 🎉", StateAction.End);
         }
         
         return ShowCurrentUser();
@@ -166,15 +155,14 @@ public class ConfirmUsersState : BaseState
     private StateResult ShowCurrentUser()
     {
         var user = _unconfirmedUsers[_currentUserIndex];
-        var userInfo = $"Пользователь {_currentUserIndex + 1} из {_unconfirmedUsers.Count}:\n";
-        userInfo += $"{user.Group?.Name ?? "Без группы"} {user.FullName} ID: {user.VkUserId}";
+        var userInfo = $"👤 Пользователь {_currentUserIndex + 1} из {_unconfirmedUsers.Count}\n\n🎓 Группа: {user.Group?.Name ?? "Не указана"}\n📝 ФИО: {user.FullName}";
         
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Подтвердить", VkButtonColor.Positive);
-        keyboard.AddButton("Заблокировать", VkButtonColor.Negative);
+        keyboard.AddButton("✅ Подтвердить", VkButtonColor.Positive);
+        keyboard.AddButton("❌ Заблокировать", VkButtonColor.Negative);
         keyboard.AddRow();
-        keyboard.AddButton("Пропустить", VkButtonColor.Secondary);
+        keyboard.AddButton("⏭️ Пропустить", VkButtonColor.Secondary);
         
         return StateResult.Success(userInfo, StateAction.Stay, keyboard: keyboard);
     }
