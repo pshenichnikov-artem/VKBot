@@ -145,9 +145,9 @@ public class MessageDeliveryService : BackgroundService
 
         foreach (var delivery in reminders)
         {
-            if (delivery.Message.Payload?.Contains("\"type\":\"alert\"") == true ||
-                delivery.Message.Payload?.Contains("\"type\":\"event\"") == true ||
-                delivery.Message.Payload?.Contains("\"type\":\"question\"") == true)
+            if (delivery.Message.Payload?.Contains($"\"type\":\"{PayloadType.Alert}\"") == true ||
+                delivery.Message.Payload?.Contains($"\"type\":\"{PayloadType.Event}\"") == true ||
+                delivery.Message.Payload?.Contains($"\"type\":\"{PayloadType.Question}\"") == true)
             {
                 try
                 {

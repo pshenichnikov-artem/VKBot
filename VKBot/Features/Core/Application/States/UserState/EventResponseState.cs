@@ -53,7 +53,7 @@ public class EventResponseState : BaseState
 
         var allEvents = await context.Messages
             .Include(m => m.Sender)
-            .Where(m => m.Payload != null && m.Payload.Contains("\"type\":\"event\""))
+            .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Event}\""))
             .OrderByDescending(m => m.Id)
             .ToListAsync();
 
@@ -165,7 +165,7 @@ public class EventResponseState : BaseState
 
         if (existingResponse != null)
         {
-            existingResponse.Payload = $"{{\"type\":\"event_response\",\"text\":\"{responseText.Replace("\"", "\\\"")}\"}}";
+            existingResponse.Payload = $"{{\"type\":\"{PayloadType.EventResponse}\",\"text\":\"{responseText.Replace("\"", "\\\"")}\"}}";
         }
         else
         {
@@ -173,7 +173,7 @@ public class EventResponseState : BaseState
             {
                 SenderId = message.UserId,
                 ReplyToMessageId = currentEvent.Id,
-                Payload = $"{{\"type\":\"event_response\",\"text\":\"{responseText.Replace("\"", "\\\"")}\"}}"
+                Payload = $"{{\"type\":\"{PayloadType.EventResponse}\",\"text\":\"{responseText.Replace("\"", "\\\"")}\"}}"
             };
             context.Messages.Add(response);
         }
@@ -264,7 +264,7 @@ public class EventResponseState : BaseState
         
         var allEvents = await context.Messages
             .Include(m => m.Sender)
-            .Where(m => m.Payload != null && m.Payload.Contains("\"type\":\"event\""))
+            .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Event}\""))
             .OrderBy(m => m.Id)
             .ToListAsync();
 

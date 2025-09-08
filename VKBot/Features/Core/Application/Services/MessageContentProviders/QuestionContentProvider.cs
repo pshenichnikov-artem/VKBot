@@ -21,7 +21,7 @@ public class QuestionContentProvider : IMessageContentProvider
         _serviceProvider = serviceProvider;
     }
 
-    public string GetMessageType() => "question";
+    public string GetMessageType() => PayloadType.Question.ToString();
 
     public async Task<StateResult> GenerateMessageContent(Message message)
     {
@@ -42,7 +42,7 @@ public class QuestionContentProvider : IMessageContentProvider
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
-        keyboard.AddButton("Ответить", VkButtonColor.Primary, payload: $"{{\"type\":\"answer_question\",\"messageId\":{message.Id}}}");
+        keyboard.AddButton("Ответить", VkButtonColor.Primary, payload: $"{{\"type\":\"{PayloadType.AnswerQuestion}\",\"messageId\":{message.Id}}}");
 
         return StateResult.Success(text, StateAction.End, keyboard: keyboard);
     }

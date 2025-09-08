@@ -42,8 +42,8 @@ public class AlertResponseState : BaseState
     {
         if (message.Payload == null 
             || !message.Payload.TryGetValue("messageId", out var messageIdElement)
-            || !message.Payload.TryGetValue("action", out var action) 
-            || action?.ToString() != "alert_response")
+            || !message.Payload.TryGetValue("type", out var type) 
+            || type?.ToString() != PayloadType.AlertResponse.ToString())
         {
             return StateResult.Success("Недоступная функция", StateAction.End);
         }
@@ -87,7 +87,7 @@ public class AlertResponseState : BaseState
         {
             SenderId = message.UserId,
             ReplyToMessageId = _alertMessageId,
-            Payload = $"{{\"type\":\"alert_response\",\"count\":{count}}}"
+            Payload = $"{{\"type\":\"{PayloadType.AlertResponse}\",\"count\":{count}}}"
         };
         context.Messages.Add(responseMsg);
         await context.SaveChangesAsync();

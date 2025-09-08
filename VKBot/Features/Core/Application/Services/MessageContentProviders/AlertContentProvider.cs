@@ -10,7 +10,7 @@ namespace VKBot.Features.Core.Application.Services.MessageContentProviders;
 
 public class AlertContentProvider : IMessageContentProvider
 {
-    public string GetMessageType() => "alert";
+    public string GetMessageType() => PayloadType.Alert.ToString();
 
     public async Task<StateResult> GenerateMessageContent(Message message)
     {
@@ -21,7 +21,7 @@ public class AlertContentProvider : IMessageContentProvider
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
-        keyboard.AddButton("Ответить", VkButtonColor.Negative, payload: $"{{\"action\":\"alert_response\",\"messageId\":{message.Id}}}");
+        keyboard.AddButton("Ответить", VkButtonColor.Negative, payload: $"{{\"type\":\"{PayloadType.AlertResponse}\",\"messageId\":{message.Id}}}");
 
         return StateResult.Success(text, StateAction.End, keyboard: keyboard);
     }

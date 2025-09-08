@@ -2,12 +2,14 @@ using System.Text.Json;
 using OfficeOpenXml;
 using VKBot.Features.Core.Application.Interfaces;
 using VKBot.Features.Core.Domain.Entities;
+using VKBot.Features.Core.Domain.Enums;
+
 
 namespace VKBot.Features.Core.Application.Services.ExcelReportProviders;
 
 public class AlertExcelProvider : IExcelReportProvider
 {
-    public string GetMessageType() => "alert";
+    public string GetMessageType() => PayloadType.Alert.ToString();
     public string GetFileName() => $"alert_report_{DateTime.UtcNow.AddHours(3):yyyy_MM_dd_HH_mm}.xlsx";
     public string GetReportTitle() => "Отчет по тревоге";
 

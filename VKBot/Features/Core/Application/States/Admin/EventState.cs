@@ -146,9 +146,8 @@ public class EventState : BaseState
 
         var msg = new Message
         {
-            Id = _eventContentMessageId,
             SenderId = message.UserId,
-            Payload = $"{{\"type\":\"event\",\"title\":\"{_eventTitle.Replace("\"", "\\\"")}\",\"targets\":\"{string.Join(",", _targetGroups)}\",\"deadline\":\"{DateTime.UtcNow.AddHours(hours):yyyy-MM-ddTHH:mm:ssZ}\"}}"
+            Payload = $"{{\"type\":\"{PayloadType.Event}\",\"title\":\"{_eventTitle.Replace("\"", "\\\"")}\",\"targets\":\"{string.Join(",", _targetGroups)}\",\"deadline\":\"{DateTime.UtcNow.AddHours(hours):yyyy-MM-ddTHH:mm:ssZ}\"}}"
         };
         context.Messages.Add(msg);
         await context.SaveChangesAsync();
@@ -157,9 +156,9 @@ public class EventState : BaseState
         {
             context.MessageDeliveries.Add(new MessageDelivery
             {
-                MessageId = _eventContentMessageId,
+                MessageId = msg.Id,
                 RecipientId = recipient.VkUserId,
-                DeliveryStatus = MessageStatus.Pending.ToString().ToLower(),
+                DeliveryStatus = MessageStatus.Pending.ToString(),
                 DispatchTime = DateTime.UtcNow
             });
         }
@@ -167,7 +166,7 @@ public class EventState : BaseState
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
-        keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"action\":\"excel\",\"messageId\":{_eventContentMessageId}}}");
+        keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"type\":\"{PayloadType.Excel}\",\"messageId\":{msg.Id}}}");
         
         return StateResult.Success($"Событие отправлено {recipients.Count} получателям на {hours} часов", StateAction.End, keyboard: keyboard);
     }

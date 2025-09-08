@@ -12,6 +12,7 @@ namespace VKBot.Features.Core.Domain.Entities
         public string? Payload { get; set; } //Json с доп параметрами
         public bool EnableReminder { get; set; } = false;
         public DateTime? LastReminderSent { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public ICollection<MessageDelivery> MessageDeliveries { get; set; } = new List<MessageDelivery>();
     }

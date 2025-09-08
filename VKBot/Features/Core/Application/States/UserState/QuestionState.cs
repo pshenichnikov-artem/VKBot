@@ -53,13 +53,13 @@ namespace VKBot.Features.Core.Application.States.UserState
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var admins = await context.Users
-                .Where(u => u.Role == UserRole.Admin.ToString().ToLower() && u.IsConfirmed && !u.IsBlocked)
+                .Where(u => u.Role == UserRole.Admin.ToString() && u.IsConfirmed && !u.IsBlocked)
                 .ToListAsync();
 
             var msg = new Message
             {
                 SenderId = message.UserId,
-                Payload = $"{{\"type\":\"question\",\"text\":\"{messageText.Replace("\"", "\\\"")}\"}}"
+                Payload = $"{{\"type\":\"{PayloadType.Question}\",\"text\":\"{messageText.Replace("\"", "\\\"")}\"}}"
             };
             context.Messages.Add(msg);
             await context.SaveChangesAsync();
@@ -70,13 +70,13 @@ namespace VKBot.Features.Core.Application.States.UserState
                 {
                     MessageId = msg.Id,
                     RecipientId = admin.VkUserId,
-                    DeliveryStatus = MessageStatus.Pending.ToString().ToLower(),
+                    DeliveryStatus = MessageStatus.Pending.ToString(),
                     DispatchTime = DateTime.UtcNow
                 });
             }
             await context.SaveChangesAsync();
 
-            return StateResult.Success($"Ваш вопрос отправлен администраторам ({admins.Count})", StateAction.End);
+            return StateResult.Success($"Ваш вопрос отправлен администратору)", StateAction.End);
         }
     }
 }

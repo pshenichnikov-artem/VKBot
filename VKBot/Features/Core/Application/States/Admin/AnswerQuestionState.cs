@@ -54,7 +54,7 @@ public class AnswerQuestionState : BaseState
 
         _questions = await context.Messages
             .Include(m => m.Sender)
-            .Where(m => m.Payload != null && m.Payload.Contains("\"type\":\"question\"") && 
+            .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Question}\"") && 
                    !m.Payload.Contains("\"answered\":true"))
             .OrderBy(m => m.Id)
             .ToListAsync();
@@ -69,7 +69,9 @@ public class AnswerQuestionState : BaseState
         {
             var payload = JsonSerializer.Deserialize<JsonElement>(question.Payload!);
             var text = payload.GetProperty("text").GetString();
-            questionsList += $"От {question.Sender?.FullName}: {text?.Substring(0, Math.Min(50, text.Length))}...\n";
+            var truncatedText = text?.Length > 30 ? text.Substring(0, 30) + "..." : text;
+            var time = question.CreatedAt?.AddHours(3).ToString("dd.MM HH:mm") ?? "";
+            questionsList += $"От {question.Sender?.FullName} ({time}): {truncatedText}\n";
         }
 
         var keyboard = VkKeyboard.Create(false, true);
@@ -144,7 +146,7 @@ public class AnswerQuestionState : BaseState
         {
             MessageId = msg.Id,
             RecipientId = currentQuestion.SenderId!.Value,
-            DeliveryStatus = MessageStatus.Pending.ToString().ToLower(),
+            DeliveryStatus = MessageStatus.Pending.ToString(),
             DispatchTime = DateTime.UtcNow
         });
         await context.SaveChangesAsync();
@@ -152,7 +154,7 @@ public class AnswerQuestionState : BaseState
         var questionToUpdate = await context.Messages.FirstAsync(m => m.Id == currentQuestion.Id);
         var payload = JsonSerializer.Deserialize<JsonElement>(questionToUpdate.Payload!);
         var text = payload.GetProperty("text").GetString();
-        questionToUpdate.Payload = $"{{\"type\":\"question\",\"text\":\"{text}\",\"answered\":true}}";
+        questionToUpdate.Payload = $"{{\"type\":\"{PayloadType.Question}\",\"text\":\"{text}\",\"answered\":true}}";
         await context.SaveChangesAsync();
 
         _currentQuestionIndex++;
