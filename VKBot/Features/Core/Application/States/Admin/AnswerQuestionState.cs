@@ -70,7 +70,7 @@ public class AnswerQuestionState : BaseState
             var payload = JsonSerializer.Deserialize<JsonElement>(question.Payload!);
             var text = payload.GetProperty("text").GetString();
             var truncatedText = text?.Length > 30 ? text.Substring(0, 30) + "..." : text;
-            var time = question.CreatedAt?.AddHours(3).ToString("dd.MM HH:mm") ?? "";
+            var time = question.CreatedAt.AddHours(3).ToString("dd.MM HH:mm") ?? "";
             questionsList += $"От {question.Sender?.FullName} ({time}): {truncatedText}\n";
         }
 

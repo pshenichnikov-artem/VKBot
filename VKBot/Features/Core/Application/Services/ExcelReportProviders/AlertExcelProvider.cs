@@ -41,7 +41,7 @@ public class AlertExcelProvider : IExcelReportProvider
             foreach (var delivery in group.OrderBy(d => d.Recipient?.FullName))
             {
                 var response = responses.FirstOrDefault(r => r.SenderId == delivery.RecipientId);
-                var status = response != null ? "Ответил" : delivery.isRead ? "Прочитано" : "Не прочитано";
+                var status = response != null ? "Ответил" : "Не ответил";
 
                 var count = "";
                 if (response != null)
