@@ -19,10 +19,10 @@ public class EditStudentState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Начало редактирования студента",
-        1 => "Ожидание ввода имени студента",
-        2 => $"Ожидание нового имени для {_studentName}",
-        _ => "Неизвестный шаг"
+        0 => "✏️ Редактирование данных студента\nКоманда для изменения ФИО студента в системе.",
+        1 => "🔍 Поиск студента\nВведите VK ID студента, данные которого нужно изменить.",
+        2 => $"📝 Ввод нового ФИО\nУкажите новое ФИО для студента {_studentName}.",
+        _ => "❌ Ошибка в процессе редактирования"
     };
   
     public override bool IsEntryPoint => false;
@@ -46,7 +46,7 @@ public class EditStudentState : BaseState
     private StateResult RequestStudentName()
     {
         _step = 1;
-        return StateResult.Success("Введите VK ID студента для изменения:", StateAction.Stay);
+        return StateResult.Success("🔍 Введите VK ID студента:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessStudentName(UserMessage message)
@@ -54,7 +54,7 @@ public class EditStudentState : BaseState
         var input = message.Text?.Trim();
         if (string.IsNullOrEmpty(input) || !long.TryParse(input, out long vkId))
         {
-            return StateResult.Success("Введите корректный VK ID:", StateAction.Stay);
+            return StateResult.Success("❌ Неверный формат\n🔢 Введите корректный VK ID:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -66,14 +66,14 @@ public class EditStudentState : BaseState
             
         if (student == null)
         {
-            return StateResult.Success($"Студент с VK ID {vkId} не найден:", StateAction.Stay);
+            return StateResult.Success($"❌ Студент с VK ID {vkId} не найден\n🔍 Проверьте VK ID и попробуйте снова:", StateAction.Stay);
         }
         
-        _studentName = $"{student.Group?.Name} {student.FullName}";
+        _studentName = $"{student.FullName}";
         _studentId = vkId;
 
         _step = 2;
-        return StateResult.Success($"Введите новое ФИО для {_studentName}:", StateAction.Stay);
+        return StateResult.Success($"📝 Введите новое ФИО для {_studentName}:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessNewName(UserMessage message)
@@ -81,7 +81,7 @@ public class EditStudentState : BaseState
         _newName = message.Text?.Trim();
         if (string.IsNullOrEmpty(_newName))
         {
-            return StateResult.Success("Новое ФИО не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("❌ ФИО обязательно\n📝 Введите новое ФИО:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -94,6 +94,6 @@ public class EditStudentState : BaseState
             await context.SaveChangesAsync();
         }
 
-        return StateResult.Success($"ФИО студента {_studentName} изменено на {_newName}", StateAction.End);
+        return StateResult.Success($"✅ ФИО студента успешно изменено\nСтарое: {_studentName}\nНовое: {_newName}", StateAction.End);
     }
 }

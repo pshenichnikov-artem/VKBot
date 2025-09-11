@@ -15,7 +15,7 @@ public class ExcelState : BaseState
 {
     public ExcelState(IServiceProvider serviceProvider) : base(serviceProvider) { }
 
-    public override string Description => "Генерация Excel файла\nСоздает и отправляет Excel-файл со списком всех подтвержденных пользователей с информацией о группах и контактных данных";
+    public override string Description => "Генерация Excel файла\nСоздает и отправляет Excel-файл с ответами пользователей";
     public override bool IsEntryPoint => true;
     public override string? Command => "Excel";
     public override UserRole[] AllowedRoles => new[] { UserRole.Admin };
@@ -66,11 +66,13 @@ public class ExcelState : BaseState
             .Include(md => md.Recipient)
             .ThenInclude(u => u.Group)
             .Where(md => md.MessageId == eventMessageId)
+            .IgnoreQueryFilters()
             .ToListAsync();
             
         var responses = await context.Messages
             .Include(m => m.Sender)
             .Where(m => m.ReplyToMessageId == eventMessageId && m.Payload != null)
+            .IgnoreQueryFilters()
             .ToListAsync();
             
         var excelBytes = await provider.GenerateReport(eventMsg, deliveries, responses);

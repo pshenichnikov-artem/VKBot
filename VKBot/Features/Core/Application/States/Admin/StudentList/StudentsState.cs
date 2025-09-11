@@ -16,9 +16,9 @@ public class StudentsState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Управление списком студентов",
-        1 => "Ожидание выбора действия",
-        _ => "Неизвестный шаг"
+        0 => "👥 Управление списком студентов\nКоманда для просмотра списка всех активных студентов с возможностью редактирования и удаления.",
+        1 => "📋 Выбор действия\nИспользуйте кнопки для выбора действия со студентами.",
+        _ => "❌ Ошибка в процессе управления студентами"
     };
     
     public override bool IsEntryPoint => true;
@@ -56,10 +56,10 @@ public class StudentsState : BaseState
             
         if (!students.Any())
         {
-            return StateResult.Success("Список студентов пуст", StateAction.End);
+            return StateResult.Success("👥 Список студентов пуст", StateAction.End);
         }
         
-        var studentsList = "Список студентов:\n";
+        var studentsList = $"👥 Список студентов ({students.Count}):\n";
         
         for (int i = 0; i < students.Count; i++)
         {
@@ -83,6 +83,6 @@ public class StudentsState : BaseState
         keyboard.AddButton("Изменить", VkButtonColor.Primary);
         keyboard.AddButton("Удалить", VkButtonColor.Negative);
         
-        return StateResult.Success("Неизвестное действие. Доступные: Изменить, Удалить", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success("❌ Используйте кнопки для выбора действия", StateAction.Stay, keyboard: keyboard);
     }
 }

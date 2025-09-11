@@ -6,6 +6,7 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.VK.Domain.Models;
+using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 
 namespace VKBot.Features.Core.Application.States;
@@ -19,10 +20,10 @@ public class DeleteStudentState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Начало удаления студента",
-        1 => "Ожидание ввода имени студента для удаления",
-        2 => $"Подтверждение удаления студента {_studentName}",
-        _ => "Неизвестный шаг"
+        0 => "🗑️ Удаление студента\nКоманда для полного удаления студента из системы. Операция необратима!",
+        1 => "🔍 Поиск студента\nВведите VK ID студента, которого нужно удалить из системы.",
+        2 => $"⚠️ Подтверждение удаления\nПодтвердите удаление студента {_studentName}. Это действие нельзя отменить!",
+        _ => "❌ Ошибка в процессе удаления студента"
     };
     
     public override bool IsEntryPoint => false;
@@ -46,7 +47,7 @@ public class DeleteStudentState : BaseState
     private StateResult RequestStudentName()
     {
         _step = 1;
-        return StateResult.Success("Введите VK ID студента для удаления:", StateAction.Stay);
+        return StateResult.Success("🔍 Введите VK ID студента для удаления:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessStudentName(UserMessage message)
@@ -54,7 +55,7 @@ public class DeleteStudentState : BaseState
         var input = message.Text?.Trim();
         if (string.IsNullOrEmpty(input) || !long.TryParse(input, out long vkId))
         {
-            return StateResult.Success("Введите корректный VK ID:", StateAction.Stay);
+            return StateResult.Success("❌ Неверный формат\n🔢 Введите корректный VK ID:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -66,7 +67,7 @@ public class DeleteStudentState : BaseState
             
         if (student == null)
         {
-            return StateResult.Success($"Студент с VK ID {vkId} не найден:", StateAction.Stay);
+            return StateResult.Success($"❌ Студент с VK ID {vkId} не найден\n🔍 Проверьте VK ID и попробуйте снова:", StateAction.Stay);
         }
         
         _studentName = $"{student.Group?.Name} {student.FullName}";
@@ -79,7 +80,7 @@ public class DeleteStudentState : BaseState
         keyboard.AddButton("Да", VkButtonColor.Negative);
         keyboard.AddButton("Нет", VkButtonColor.Secondary);
         
-        return StateResult.Success($"Удалить студента {_studentName}?", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success($"⚠️ ВНИМАНИЕ!\nУдалить студента {_studentName}?\n\nЭто действие нельзя отменить!", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ProcessConfirmation(UserMessage message)
@@ -94,16 +95,19 @@ public class DeleteStudentState : BaseState
             var student = await context.Users.FirstOrDefaultAsync(u => u.VkUserId == _studentId);
             if (student != null)
             {
-                context.Users.Remove(student);
+                student.IsDeleted = true;
                 await context.SaveChangesAsync();
+                
+                var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
+                await notificationService.SendUserDeletedNotification(student.VkUserId);
             }
             
-            return StateResult.Success($"Студент {_studentName} удален", StateAction.End);
+            return StateResult.Success($"✅ Студент {_studentName} успешно удален из системы", StateAction.End);
         }
         
         if (response == "нет")
         {
-            return StateResult.Success("Удаление отменено", StateAction.End);
+            return StateResult.Success("❌ Удаление отменено", StateAction.End);
         }
         
         var keyboard = VkKeyboard.Create(false, true);
@@ -111,6 +115,6 @@ public class DeleteStudentState : BaseState
         keyboard.AddButton("Да", VkButtonColor.Negative);
         keyboard.AddButton("Нет", VkButtonColor.Secondary);
         
-        return StateResult.Success("Выберите действие:", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success("❌ Используйте кнопки для выбора:", StateAction.Stay, keyboard: keyboard);
     }
 }

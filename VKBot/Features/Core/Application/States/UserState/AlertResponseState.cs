@@ -17,9 +17,9 @@ public class AlertResponseState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Ответ на тревогу",
-        1 => "Ввод количества студентов",
-        _ => "Неизвестный шаг"
+        0 => "🚨 Ответ на воздушную тревогу\nКоманда для ответа на сигнал воздушной тревоги. Нажмите кнопку 'Ответить' в сообщении о тревоге и укажите количество студентов в укрытии.",
+        1 => "🔢 Введите количество студентов в укрытии\nФормат: число от 0 до 50",
+        _ => "❌ Ошибка в процессе ответа"
     };
 
     public override bool IsEntryPoint => true;
@@ -45,7 +45,7 @@ public class AlertResponseState : BaseState
             || !message.Payload.TryGetValue("type", out var type) 
             || type?.ToString() != PayloadType.AlertResponse.ToString())
         {
-            return StateResult.Success("Недоступная функция", StateAction.End);
+            return StateResult.Success("❌ Недоступная функция", StateAction.End);
         }
 
         try
@@ -54,22 +54,22 @@ public class AlertResponseState : BaseState
         }
         catch
         {
-            return StateResult.Success("Ошибка обработки кнопки", StateAction.End);
+            return StateResult.Success("❌ Ошибка обработки кнопки", StateAction.End);
         }
 
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var alertMsg = await context.Messages
-            .FirstOrDefaultAsync(m => m.Id == _alertMessageId && m.Payload != null && m.Payload.Contains("\"type\":\"alert\""));
+            .FirstOrDefaultAsync(m => m.Id == _alertMessageId && m.Payload != null && m.Payload.Contains($"\"type\": \"{PayloadType.Alert}\""));
 
         if (alertMsg == null)
         {
-            return StateResult.Success("Сообщение не найдено", StateAction.End);
+            return StateResult.Success("❌ Сообщение не найдено", StateAction.End);
         }
 
         _step = 1;
-        return StateResult.Success("Введите число студентов в укрытии (только 1 число от 0 до 50):", StateAction.Stay);
+        return StateResult.Success("🔢 Введите количество студентов в укрытии (от 0 до 50):", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessStudentCount(UserMessage message)
@@ -77,7 +77,7 @@ public class AlertResponseState : BaseState
         var input = message.Text?.Trim();
         if (!int.TryParse(input, out var count) || count < 0 || count > 50)
         {
-            return StateResult.Success("Введите корректное число от 0 до 50:", StateAction.Stay);
+            return StateResult.Success("❌ Неверный формат\n🔢 Введите число от 0 до 50:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -92,6 +92,6 @@ public class AlertResponseState : BaseState
         context.Messages.Add(responseMsg);
         await context.SaveChangesAsync();
 
-        return StateResult.Success($"Ваш ответ ({count} студентов) сохранен", StateAction.End);
+        return StateResult.Success($"✅ Ответ сохранен: {count} студентов в укрытии", StateAction.End);
     }
 }

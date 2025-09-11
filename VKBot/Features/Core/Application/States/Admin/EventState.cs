@@ -20,15 +20,15 @@ public class EventState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Отправка события",
-        1 => "Выбор получателей",
+        0 => "📢 Создание нового события\nКоманда для создания и отправки событий студентам. Можно отправлять всем, конкретным потокам или группам. Устанавливается время для ответов.",
+        1 => "👥 Выбор получателей\nИспользуйте кнопки для выбора аудитории",
         2 => _targetType == "groups" 
-            ? "Ввод целевых групп"
-            : "Ввод целевых потоков",
-        3 => "Введите заголовок события",
-        4 => "Отправьте содержимое события",
-        5 => "Введите время для ответов (в часах)",
-        _ => "Неизвестный шаг"
+            ? "👥 Укажите группы\nФормат: ИТ/б-22-1-о, ИВТ/б-21-2-о (через запятую)"
+            : "🎓 Укажите потоки\nФормат: ИТ/б-22-о, ИВТ/б-21-о (через запятую)",
+        3 => "📝 Создание заголовка\nНапишите короткое название события",
+        4 => "📄 Отправка содержимого\nОтправьте текст, фото или документ с описанием события",
+        5 => "⏰ Установка времени\nУкажите количество часов для ответов (например: 24)",
+        _ => "❌ Ошибка в процессе создания события"
     };
 
     public override bool IsEntryPoint => true;
@@ -60,7 +60,7 @@ public class EventState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Потокам", VkButtonColor.Secondary);
         keyboard.AddButton("Группам", VkButtonColor.Secondary);
-        return StateResult.Success("Выберите кому отправить событие:", StateAction.Stay, keyboard: keyboard);
+        return StateResult.Success("📢 Выберите получателей события:", StateAction.Stay, keyboard: keyboard);
     }
 
     private StateResult ProcessRecipientSelection(UserMessage message)
@@ -71,17 +71,17 @@ public class EventState : BaseState
             case "всем":
                 _targetType = "all";
                 _step = 3;
-                return StateResult.Success("Введите заголовок события:", StateAction.Stay);
+                return StateResult.Success("📝 Введите заголовок события:", StateAction.Stay);
             case "потокам":
                 _targetType = "cohort";
                 _step = 2;
-                return StateResult.Success("Введите названия потоков через запятую:", StateAction.Stay);
+                return StateResult.Success("🎓 Введите потоки\nФормат: ИТ/б-22-о, ИВТ/б-21-о", StateAction.Stay);
             case "группам":
                 _targetType = "groups";
                 _step = 2;
-                return StateResult.Success("Введите названия групп через запятую:", StateAction.Stay);
+                return StateResult.Success("👥 Введите группы\nФормат: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
             default:
-                return StateResult.Success("Неверный выбор. Используйте кнопки.", StateAction.Stay);
+                return StateResult.Success("❌ Используйте кнопки для выбора", StateAction.Stay);
         }
     }
 
@@ -103,11 +103,11 @@ public class EventState : BaseState
 
         if (!_targetGroups.Any())
         {
-            return StateResult.Success("Неверный формат. Попробуйте еще раз:", StateAction.Stay);
+            return StateResult.Success("❌ Неверный формат\n📝 Пример: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
         }
 
         _step = 3;
-        return StateResult.Success("Введите заголовок события:", StateAction.Stay);
+        return StateResult.Success("📝 Введите заголовок события:", StateAction.Stay);
     }
 
     private string _eventTitle = "";
@@ -118,25 +118,25 @@ public class EventState : BaseState
         _eventTitle = message.Text ?? "";
         if (string.IsNullOrEmpty(_eventTitle))
         {
-            return StateResult.Success("Заголовок не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("❌ Заголовок обязателен\n📝 Введите название события:", StateAction.Stay);
         }
 
         _step = 4;
-        return StateResult.Success("Отправьте содержимое события:", StateAction.Stay);
+        return StateResult.Success("📄 Отправьте текст события:", StateAction.Stay);
     }
 
     private StateResult ProcessEventTextStep(UserMessage message)
     {
         _eventContentMessageId = message.MessageId;
         _step = 5;
-        return StateResult.Success("Введите время для ответов (в часах, например: 24):", StateAction.Stay);
+        return StateResult.Success("⏰ Введите количество часов для ответов:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessEventText(UserMessage message)
     {
         if (!int.TryParse(message.Text, out var hours) || hours <= 0)
         {
-            return StateResult.Success("Введите корректное количество часов (число больше 0):", StateAction.Stay);
+            return StateResult.Success("❌ Неверный формат\n⏰ Введите количество часов:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -168,7 +168,7 @@ public class EventState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"type\":\"{PayloadType.Excel}\",\"messageId\":{msg.Id}}}");
         
-        return StateResult.Success($"Событие отправлено {recipients.Count} получателям на {hours} часов", StateAction.End, keyboard: keyboard);
+        return StateResult.Success($"✅ Событие отправлено\n👥 Получателей: {recipients.Count}\n⏰ Время ответа: {hours}ч", StateAction.End, keyboard: keyboard);
     }
 
     private async Task<List<User>> GetRecipients(AppDbContext context)

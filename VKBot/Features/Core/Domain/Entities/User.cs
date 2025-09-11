@@ -15,6 +15,7 @@ namespace VKBot.Features.Core.Domain.Entities
         [Required]
         public bool IsConfirmed { get; set; } = false;
         public bool IsBlocked { get; set; } = false;
+        public bool IsDeleted { get; set; } = false;
         public long? GroupId { get; set; }
         public Group? Group { get; set; } = null;
         public ICollection<Message> SentMessages { get; set; } = new List<Message>();

@@ -35,14 +35,12 @@ public class QuestionContentProvider : IMessageContentProvider
         var payload = JsonSerializer.Deserialize<JsonElement>(message.Payload!);
         var questionText = payload.GetProperty("text").GetString();
 
-        var text = $"❓ Новый вопрос от студента\n\n" +
-                   $"👤 {sender?.FullName ?? "Неизвестно"}\n" +
-                   $"🎓 {sender?.Group?.Name ?? "Без группы"}\n\n" +
-                   $"📝 Вопрос: {questionText}";
+        var text = $"❓ У вас новые вопросы от студентов\n\n" +
+                   $"Используйте /questions для просмотра";
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
-        keyboard.AddButton("Ответить", VkButtonColor.Primary, payload: $"{{\"type\":\"{PayloadType.AnswerQuestion}\",\"messageId\":{message.Id}}}");
+        keyboard.AddButton("/questions", VkButtonColor.Primary);
 
         return StateResult.Success(text, StateAction.End, keyboard: keyboard);
     }

@@ -21,15 +21,15 @@ public class EventResponseState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Ответ на событие",
-        1 => "Выбор действия",
-        2 => "Просмотр события",
-        3 => "Введите ваш ответ",
-        _ => "Неизвестный шаг"
+        0 => "📅 Просмотр событий\nКоманда для просмотра всех актуальных событий и ответов на них. Можно фильтровать по статусу: неотвеченные, отвеченные или все.",
+        1 => "📋 Фильтрация событий\nВыберите какие события показать: неотвеченные, отвеченные или все",
+        2 => "📄 Просмотр события\nИспользуйте кнопки для ответа или пропуска",
+        3 => "📝 Написание ответа\nОпишите ваш ответ на событие подробно",
+        _ => "❌ Ошибка в процессе ответа на событие"
     };
 
     public override bool IsEntryPoint => true;
-    public override string? Command => "/respond";
+    public override string? Command => "/event";
     public override UserRole[] AllowedRoles => new[] { UserRole.Student };
 
     protected override Dictionary<int, Type[]> AvailableStates => new();
@@ -71,7 +71,7 @@ public class EventResponseState : BaseState
 
         if (!events.Any())
         {
-            return StateResult.Success("Нет событий", StateAction.End);
+            return StateResult.Success("📅 Нет актуальных событий", StateAction.End);
         }
 
         var eventsList = $"На данный момент актуальны {events.Count} событий";
@@ -103,12 +103,12 @@ public class EventResponseState : BaseState
                 await LoadEvents(message, "all");
                 break;
             default:
-                return StateResult.Success("Неизвестное действие", StateAction.Stay);
+                return StateResult.Success("❌ Используйте кнопки для выбора", StateAction.Stay);
         }
         
         if (_events.Count == 0)
         {
-            return StateResult.Success("Нет событий для просмотра", StateAction.End);
+            return StateResult.Success("📅 Нет событий для просмотра", StateAction.End);
         }
         
         _step = 2;
@@ -125,7 +125,7 @@ public class EventResponseState : BaseState
             case "ответить":
             case "изменить ответ":
                 _step = 3;
-                return StateResult.Success("Введите ваш ответ:", StateAction.Stay);
+                return StateResult.Success("📝 Введите ваш ответ:", StateAction.Stay);
             case "пропустить":
                 break;
         }
@@ -134,7 +134,7 @@ public class EventResponseState : BaseState
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("Все события просмотрены", StateAction.End);
+            return StateResult.Success("✅ Все события просмотрены", StateAction.End);
         }
 
         return await ShowCurrentEvent(message);
@@ -145,7 +145,7 @@ public class EventResponseState : BaseState
         var responseText = message.Text;
         if (string.IsNullOrEmpty(responseText))
         {
-            return StateResult.Success("Ответ не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("❌ Ответ обязателен\n📝 Напишите ваш ответ:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -184,7 +184,7 @@ public class EventResponseState : BaseState
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("Ваш ответ сохранен. Все события просмотрены", StateAction.End);
+            return StateResult.Success("✅ Ответ сохранен\n📅 Все события просмотрены", StateAction.End);
         }
 
         return await ShowCurrentEvent(message);
@@ -265,7 +265,7 @@ public class EventResponseState : BaseState
         var allEvents = await context.Messages
             .Include(m => m.Sender)
             .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Event}\""))
-            .OrderBy(m => m.Id)
+            .OrderByDescending(m => m.Id)
             .ToListAsync();
 
         _events = allEvents.Where(evt => {

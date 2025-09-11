@@ -14,9 +14,9 @@ namespace VKBot.Features.Core.Application.States.UserState
 
         public override string Description => _step switch
         {
-            0 => "Задать вопрос администратору",
-            1 => "Введите ваш вопрос",
-            _ => "Неизвестный шаг"
+            0 => "❓ Обращение к администрации\nКоманда для отправки вопросов администраторам. Опишите вашу проблему или вопрос, и администраторы ответят вам.",
+            1 => "📝 Напишите вопрос\nОпишите вашу проблему или вопрос подробно",
+            _ => "❌ Ошибка в процессе отправки вопроса"
         };
 
         public override bool IsEntryPoint => true;
@@ -38,7 +38,7 @@ namespace VKBot.Features.Core.Application.States.UserState
         private StateResult AskQuestion()
         {
             _step = 1;
-            return StateResult.Success("Введите ваш вопрос:", StateAction.Stay);
+            return StateResult.Success("❓ Введите ваш вопрос:", StateAction.Stay);
         }
 
         private async Task<StateResult> ProcessQuestion(UserMessage message)
@@ -46,7 +46,7 @@ namespace VKBot.Features.Core.Application.States.UserState
             var messageText = message.Text;
             if (string.IsNullOrEmpty(messageText))
             {
-                return StateResult.Success("Сообщение не может быть пустым. Введите текст:", StateAction.Stay);
+                return StateResult.Success("❌ Вопрос не может быть пустым\n❓ Напишите ваш вопрос:", StateAction.Stay);
             }
 
             using var scope = _serviceProvider.CreateScope();
@@ -76,7 +76,7 @@ namespace VKBot.Features.Core.Application.States.UserState
             }
             await context.SaveChangesAsync();
 
-            return StateResult.Success($"Ваш вопрос отправлен администратору)", StateAction.End);
+            return StateResult.Success($"✅ Вопрос отправлен\n👥 Администраторов: {admins.Count}", StateAction.End);
         }
     }
 }

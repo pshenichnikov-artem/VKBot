@@ -10,7 +10,7 @@ public class UserHelpState : BaseState
 {
     public UserHelpState(IServiceProvider serviceProvider) : base(serviceProvider) { }
 
-    public override string Description => "Справка по командам";
+    public override string Description => "📚 Справка по командам\nПолный список всех доступных команд для студентов с подробным описанием. Используйте /cancel для отмены любой текущей команды.";
     public override bool IsEntryPoint => true;
     public override string? Command => "/help";
     public override UserRole[] AllowedRoles => new[] { UserRole.Student };
@@ -25,7 +25,7 @@ public class UserHelpState : BaseState
             return StateResult.Success("Сервис недоступен", StateAction.End);
         }
 
-        var help = "Доступные команды:\n";
+        var help = "📚 Доступные команды студента:\n\n";
         var states = stateDiscoveryService.FindStates(isEntryPoint: true, userRole: UserRole.Student);
         
         foreach (var state in states)
@@ -36,6 +36,8 @@ public class UserHelpState : BaseState
             }
         }
 
+        help += "\nℹ️ Общие команды:\n/cancel -- Отменить любую текущую команду";
+        
         return StateResult.Success(help.TrimEnd(), StateAction.End);
     }
 }

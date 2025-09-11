@@ -20,11 +20,11 @@ public class AnswerQuestionState : BaseState
 
     public override string Description => _step switch
     {
-        0 => "Ответ на вопросы\nПолучение списка вопросов от студентов",
-        1 => "Выберите действие: 'Перейти к ответам' (пошаговое рассмотрение)",
-        2 => "Рассмотрение вопроса. Выберите: 'Ответить', 'Удалить', 'Пропустить'",
-        3 => "Введите ответ на вопрос",
-        _ => "Неизвестный шаг"
+        0 => "❓ Обработка вопросов студентов\nКоманда для просмотра и ответов на вопросы от студентов. Показывает список новых вопросов с возможностью ответить, удалить или пропустить.",
+        1 => "📋 Начало обработки\nНажмите 'Перейти к ответам' для пошагового рассмотрения вопросов",
+        2 => "📄 Рассмотрение вопроса\nВыберите действие: ответить, удалить или пропустить вопрос",
+        3 => "📝 Написание ответа\nНапишите подробный ответ на вопрос студента",
+        _ => "❌ Ошибка в процессе обработки вопросов"
     };
 
     public override bool IsEntryPoint => true;
@@ -56,12 +56,12 @@ public class AnswerQuestionState : BaseState
             .Include(m => m.Sender)
             .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Question}\"") && 
                    !m.Payload.Contains("\"answered\":true"))
-            .OrderBy(m => m.Id)
+            .OrderByDescending(m => m.Id)
             .ToListAsync();
 
         if (!_questions.Any())
         {
-            return StateResult.Success("Нет вопросов", StateAction.End);
+            return StateResult.Success("❓ Нет новых вопросов", StateAction.End);
         }
 
         var questionsList = $"Вопросы ({_questions.Count}):\n";
@@ -90,7 +90,7 @@ public class AnswerQuestionState : BaseState
             return ShowCurrentQuestion();
         }
 
-        return StateResult.Success("Неизвестное действие", StateAction.Stay);
+        return StateResult.Success("❌ Используйте кнопки для выбора", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessQuestionAction(UserMessage message)
@@ -101,12 +101,12 @@ public class AnswerQuestionState : BaseState
         {
             case "ответить":
                 _step = 3;
-                return StateResult.Success("Введите ответ:", StateAction.Stay);
+                return StateResult.Success("📝 Введите ответ на вопрос:", StateAction.Stay);
             case "удалить":
                 await DeleteQuestion();
                 break;
             case "закончить ответы на вопросы":
-                return StateResult.Success("Ответы на вопросы прекращены", StateAction.End);
+                return StateResult.Success("✅ Ответы на вопросы завершены", StateAction.End);
             case "пропустить":
                 break;
         }
@@ -126,31 +126,19 @@ public class AnswerQuestionState : BaseState
         var answerText = message.Text;
         if (string.IsNullOrEmpty(answerText))
         {
-            return StateResult.Success("Ответ не может быть пустым:", StateAction.Stay);
+            return StateResult.Success("❌ Ответ обязателен\n📝 Напишите ответ:", StateAction.Stay);
         }
 
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var vkBot = scope.ServiceProvider.GetRequiredService<VKBot.Features.VK.Application.Interfaces.IVkBot>();
 
         var currentQuestion = _questions[_currentQuestionIndex];
-        var msg = new Message
-        {
-            SenderId = message.UserId,
-            ReplyToMessageId = currentQuestion.Id,
-            Payload = $"{{\"type\":\"answer\",\"text\":\"{answerText.Replace("\"", "\\\"")}\"}}"
-        };
-        context.Messages.Add(msg);
-        await context.SaveChangesAsync();
+        
+        // Отправляем ответ напрямую пользователю
+        await vkBot.SendMessageAsync(currentQuestion.SenderId!.Value, $"❓ Ответ на ваш вопрос:\n\n{answerText}");//TODO ответ на сообщение пользователя
 
-        context.MessageDeliveries.Add(new MessageDelivery
-        {
-            MessageId = msg.Id,
-            RecipientId = currentQuestion.SenderId!.Value,
-            DeliveryStatus = MessageStatus.Pending.ToString(),
-            DispatchTime = DateTime.UtcNow
-        });
-        await context.SaveChangesAsync();
-
+        // Отмечаем вопрос как отвеченный
         var questionToUpdate = await context.Messages.FirstAsync(m => m.Id == currentQuestion.Id);
         var payload = JsonSerializer.Deserialize<JsonElement>(questionToUpdate.Payload!);
         var text = payload.GetProperty("text").GetString();

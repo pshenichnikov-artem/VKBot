@@ -29,7 +29,7 @@ public class MessageDeliveryService : BackgroundService
                 await ProcessPendingMessages();
                 await ProcessRetries();
                 await ProcessReminders();
-                await Task.Delay(30000, stoppingToken); // 30 секунд
+                await Task.Delay(5000, stoppingToken);
             }
             catch (Exception ex)
             {
@@ -51,8 +51,16 @@ public class MessageDeliveryService : BackgroundService
             .Where(md => md.DeliveryStatus == MessageStatus.Pending.ToString())
             .ToListAsync();
 
+        var memoryCache = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+
         foreach (var delivery in pendingDeliveries)
         {
+            var stateMachineKey = $"state_machine_{delivery.RecipientId}";
+            if (memoryCache.TryGetValue(stateMachineKey, out _))
+            {
+                continue;
+            }
+
             try
             {
                 var result = await contentService.GenerateMessageContent(delivery.Message);
@@ -99,8 +107,17 @@ public class MessageDeliveryService : BackgroundService
             .Take(5)
             .ToListAsync();
 
+        var memoryCache = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+
         foreach (var delivery in failedDeliveries)
         {
+            // Проверяем, есть ли активная StateMachine у пользователя
+            var stateMachineKey = $"state_machine_{delivery.RecipientId}";
+            if (memoryCache.TryGetValue(stateMachineKey, out _))
+            {
+                continue;
+            }
+
             try
             {
                 var result = await contentService.GenerateMessageContent(delivery.Message);
@@ -151,7 +168,7 @@ public class MessageDeliveryService : BackgroundService
             {
                 try
                 {
-                    await vkBot.SendMessageAsync(delivery.RecipientId, "⏰ Напоминание: у вас есть непрочитанное сообщение, требующее ответа.");
+                    await vkBot.SendMessageAsync(delivery.RecipientId, "⏰ Напоминание\n📨 У вас есть непрочитанное сообщение");
                     delivery.LastReminderAt = DateTime.UtcNow;
                 }
                 catch (Exception ex)

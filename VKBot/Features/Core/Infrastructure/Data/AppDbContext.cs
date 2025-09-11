@@ -31,7 +31,7 @@ public class AppDbContext : DbContext
             .HasOne(m => m.Sender)
             .WithMany(u => u.SentMessages)
             .HasForeignKey(m => m.SenderId)
-            //TODO переопределить и сделать ко всем запросом базовый фильтр на проверку флага isDeled
+            
             .OnDelete(DeleteBehavior.Restrict);
         
 
@@ -50,6 +50,9 @@ public class AppDbContext : DbContext
             .WithMany(u => u.MessageDeliveries)
             .HasForeignKey(md => md.RecipientId)
             .OnDelete(DeleteBehavior.Cascade);
+        
+        // Глобальный фильтр для исключения удаленных пользователей
+        modelBuilder.Entity<User>().HasQueryFilter(u => !u.IsDeleted);
         
         // Захардкоженные админы
         modelBuilder.Entity<User>().HasData(

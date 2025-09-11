@@ -115,7 +115,32 @@ public class StateMachine
                 _logger?.LogInformation("[StateMachine] Завершено: {StateType}", _currentStateInstance?.GetType().Name ?? "None");
                 _currentStateInstance = null;
                 _memoryCache.Remove(_cacheKey);
-                break;
+                
+                if (result.Keyboard == null && _stateDiscoveryService != null)
+                {
+                    var userRole = await GetUserRole(originalMessage.UserId);
+                    var availableStates = _stateDiscoveryService.FindStates(isEntryPoint: true, userRole: userRole).ToList();
+                    
+                    if (availableStates.Any())
+                    {
+                        var keyboard = VkKeyboard.Create(oneTime: true);
+                        var commands = availableStates.Where(s => !string.IsNullOrEmpty(s.Command)).Select(s => s.Command!).ToList();
+                        
+                        for (int i = 0; i < commands.Count; i += 2)
+                        {
+                            keyboard.AddRow();
+                            keyboard.AddButton(commands[i], VkButtonColor.Primary);
+                            if (i + 1 < commands.Count)
+                            {
+                                keyboard.AddButton(commands[i + 1], VkButtonColor.Primary);
+                            }
+                        }
+                        
+                        result = StateResult.Success(result.Text, result.Action, result.NextStateType, keyboard: keyboard, attachments: result.Attachments);
+                    }
+                }
+                //TODO
+                    break;
             case StateAction.Next:
                 if (result.NextStateType != null)
                 {
@@ -167,7 +192,7 @@ public class StateMachine
                 }
             }
             
-            return StateResult.Success($"Неизвестная команда. Доступные команды: {string.Join(", ", commands)}", StateAction.End, keyboard: keyboard);
+            return StateResult.Success("❌ Неизвестная команда", StateAction.End, keyboard: keyboard);
         }
         
         return StateResult.Success("Ожидайте подтверждения от администратора.");

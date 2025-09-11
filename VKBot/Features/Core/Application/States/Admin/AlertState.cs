@@ -65,6 +65,6 @@ public class AlertState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"type\":\"{PayloadType.Excel}\",\"messageId\":{msg.Id}}}");
         
-        return StateResult.Success($"Тревога отправлена {recipients.Count} студентам!", StateAction.End, keyboard: keyboard);
+        return StateResult.Success($"✅ Тревога отправлена\n👥 Получателей: {recipients.Count} студентов\n⏰ Время ответа: 2 часа", StateAction.End, keyboard: keyboard);
     }
 }
