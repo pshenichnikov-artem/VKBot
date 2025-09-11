@@ -5,14 +5,21 @@ namespace VKBot.Features.Core.Domain.Models;
 
 public class StateResult
 {
+    //
     public string? Text { get; set; }
     public List<StateAttachment> Attachments { get; set; } = new();
     public long? ReplyToMessageId { get; set; }
     public VkKeyboard? Keyboard { get; set; }
+    //////
+    public bool IsForwardMessage { get; set; }
+    public long ForwardMessageId { get; set; }
+    //////
+    //
+
     public StateAction Action { get; set; } = StateAction.End;
     public Type? NextStateType { get; set; }
     
-    public StateResult(string? text = null, StateAction action = StateAction.End, Type? nextStateType = null, long? replyToMessageId = null, List<StateAttachment>? attachments = null, VkKeyboard? keyboard = null)
+    public StateResult(string? text = null, StateAction action = StateAction.End, bool isForwardMessage = false, Type? nextStateType = null, long? replyToMessageId = null, List<StateAttachment>? attachments = null, VkKeyboard? keyboard = null)
     {
         Text = text;
         Action = action;
@@ -20,6 +27,7 @@ public class StateResult
         ReplyToMessageId = replyToMessageId;
         Attachments = attachments ?? new List<StateAttachment>();
         Keyboard = keyboard;
+        IsForwardMessage = isForwardMessage;
     }
 }
 

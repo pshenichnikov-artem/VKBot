@@ -67,7 +67,8 @@ public class CommandRouteMiddleware : MiddlewareBase
         var stateType = Assembly.GetExecutingAssembly()
             .GetTypes()
             .Where(t => t.IsSubclassOf(typeof(BaseState)) && !t.IsAbstract)
-            .FirstOrDefault(t => t.GetCustomAttribute<StateAttribute>()?.Command == command);
+            .FirstOrDefault(t => t.GetCustomAttribute<StateAttribute>()?.Command == command
+            && t.GetCustomAttribute<StateAttribute>()?.IsEntryState == true);
         
         return stateType != null ? (BaseState)_serviceProvider.GetRequiredService(stateType) : null;
     }

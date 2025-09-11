@@ -28,7 +28,7 @@ public static class VkFeatureExtensions
             
             // Порядок middleware
             pipeline.Use(provider.GetRequiredService<ExceptionMiddleware>());
-            pipeline.Use(provider.GetRequiredService<AntiSpamMiddleware>());
+            //pipeline.Use(provider.GetRequiredService<AntiSpamMiddleware>());
             pipeline.Use(provider.GetRequiredService<ParseMessageMiddleware>());
             pipeline.Use(provider.GetRequiredService<CommandRouteMiddleware>());
             pipeline.Use(provider.GetRequiredService<AuthorizeMiddleware>());

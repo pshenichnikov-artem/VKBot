@@ -19,6 +19,6 @@ public class VkResult
     public string? Text { get; set; }
     public long? UserId { get; set; }
     public VkKeyboard? Keyboard { get; set; }
-    public bool ForwardMessage { get; set; }
+    public bool IsForwardMessage { get; set; }
     public List<StateAttachment> Attachments { get; set; } = new();
 }

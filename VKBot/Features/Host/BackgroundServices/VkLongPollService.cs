@@ -15,7 +15,7 @@ using VKBot.Features.VK.Domain.Models;
 
 namespace VKBot.Features.Host.Services;
 
-public partial class VkLongPollService : BackgroundService
+public partial class VkLongPollService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<VkLongPollService> _logger;
@@ -27,14 +27,13 @@ public partial class VkLongPollService : BackgroundService
         _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await using var scope = _serviceProvider.CreateAsyncScope();
         var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
 
         LongPollServer? server = null;
-
-        while (!stoppingToken.IsCancellationRequested)
+        while (true)
         {
             try
             {
@@ -72,7 +71,7 @@ public partial class VkLongPollService : BackgroundService
             {
                 _logger.LogError(ex, "Ошибка в Long Poll");
                 server = null;
-                await Task.Delay(5000, stoppingToken);
+                await Task.Delay(5000);
             }
         }
     }
@@ -93,6 +92,18 @@ public partial class VkLongPollService : BackgroundService
 
             var context = new VkContext { Update = update };
             await pipeline.ExecuteAsync(context);
+            //TODO отправляем все VkResult
+            foreach (var result in context.Results)
+            {
+                if (result.IsForwardMessage == true)
+                {
+                    //forward
+                }
+                else
+                {
+                    //нефорвад
+                }
+            }
         }
         catch (Exception ex)
         {

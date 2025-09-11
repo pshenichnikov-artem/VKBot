@@ -28,14 +28,18 @@ public class AdminSyncService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await SyncAdmins();
-        
-        // Выполняем синхронизацию только один раз при старте
-        while (!stoppingToken.IsCancellationRequested)
+        do
         {
-            await Task.Delay(TimeSpan.FromHours(24), stoppingToken); // Раз в сутки
-            await SyncAdmins();
-        }
+            try
+            {
+                await Task.Delay(TimeSpan.FromHours(24 - DateTime.UtcNow.AddHours(3).Hour), stoppingToken); // Раз в сутки
+                await SyncAdmins();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка AdminSyncService");
+            }
+        } while (true);
     }
 
     private async Task SyncAdmins()
