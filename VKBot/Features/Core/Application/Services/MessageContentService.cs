@@ -19,7 +19,7 @@ public class MessageContentService
     public async Task<StateResult> GenerateMessageContent(Message message)
     {
         if (string.IsNullOrEmpty(message.Payload))
-            return StateResult.Success("У вас новое сообщение", StateAction.End);
+            return new StateResult("У вас новое сообщение", StateAction.End);
 
         try
         {
@@ -40,6 +40,6 @@ public class MessageContentService
             // Fallback to default message
         }
 
-        return StateResult.Success("У вас новое сообщение", StateAction.End);
+        return new StateResult("У вас новое сообщение", StateAction.End);
     }
 }

@@ -8,38 +8,34 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.VK.Enums;
 using System.Text.RegularExpressions;
+using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
+[State("рассылка", UserRole.Admin)]
+[Description(0, "📢 Создание нового события\nКоманда для создания и отправки событий студентам. Можно отправлять всем, конкретным потокам или группам. Устанавливается время для ответов.")]
+[Description(1, "👥 Выбор получателей\nИспользуйте кнопки для выбора аудитории")]
+[Description(2, "🎓 Укажите группу(Например ИТ/б-22-1-о) или поток(Например ИТ/б-22-о)")]
+[Description(3, "📝 Создание заголовка\nНапишите короткое название события")]
+[Description(4, "📄 Отправка содержимого\nОтправьте текст, фото или документ с описанием события")]
+[Description(5, "⏰ Установка времени\nУкажите количество часов для ответов (например: 24)")]
 public class EventState : BaseState
 {
+    [NonSerialized]
+    private readonly AppDbContext _context;
     private string _targetType = "";
     private List<string> _targetGroups = new();
 
-    public EventState(IServiceProvider serviceProvider) : base(serviceProvider) { }
+    public EventState(AppDbContext context)
+    { 
+        _context = context;
+    }
 
-    public override string Description => _step switch
-    {
-        0 => "📢 Создание нового события\nКоманда для создания и отправки событий студентам. Можно отправлять всем, конкретным потокам или группам. Устанавливается время для ответов.",
-        1 => "👥 Выбор получателей\nИспользуйте кнопки для выбора аудитории",
-        2 => _targetType == "groups" 
-            ? "👥 Укажите группы\nФормат: ИТ/б-22-1-о, ИВТ/б-21-2-о (через запятую)"
-            : "🎓 Укажите потоки\nФормат: ИТ/б-22-о, ИВТ/б-21-о (через запятую)",
-        3 => "📝 Создание заголовка\nНапишите короткое название события",
-        4 => "📄 Отправка содержимого\nОтправьте текст, фото или документ с описанием события",
-        5 => "⏰ Установка времени\nУкажите количество часов для ответов (например: 24)",
-        _ => "❌ Ошибка в процессе создания события"
-    };
 
-    public override bool IsEntryPoint => true;
-    public override string? Command => "/event";
-    public override UserRole[] AllowedRoles => new[] { UserRole.Admin };
-
-    protected override Dictionary<int, Type[]> AvailableStates => new();
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
-        return _step switch
+        return Step switch
         {
             0 => ShowRecipientSelection(),
             1 => ProcessRecipientSelection(message),
@@ -47,20 +43,20 @@ public class EventState : BaseState
             3 => ProcessTitleStep(message),
             4 => ProcessEventTextStep(message),
             5 => await ProcessEventText(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => new StateResult("Ошибка", StateAction.End)
         };
     }
 
     private StateResult ShowRecipientSelection()
     {
-        _step = 1;
+        Step = 1;
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
         keyboard.AddButton("Всем", VkButtonColor.Primary);
         keyboard.AddRow();
         keyboard.AddButton("Потокам", VkButtonColor.Secondary);
         keyboard.AddButton("Группам", VkButtonColor.Secondary);
-        return StateResult.Success("📢 Выберите получателей события:", StateAction.Stay, keyboard: keyboard);
+        return new StateResult("📢 Выберите получателей события:", StateAction.Stay, keyboard: keyboard);
     }
 
     private StateResult ProcessRecipientSelection(UserMessage message)
@@ -70,18 +66,18 @@ public class EventState : BaseState
         {
             case "всем":
                 _targetType = "all";
-                _step = 3;
-                return StateResult.Success("📝 Введите заголовок события:", StateAction.Stay);
+                Step = 3;
+                return new StateResult("📝 Введите заголовок события:", StateAction.Stay);
             case "потокам":
                 _targetType = "cohort";
-                _step = 2;
-                return StateResult.Success("🎓 Введите потоки\nФормат: ИТ/б-22-о, ИВТ/б-21-о", StateAction.Stay);
+                Step = 2;
+                return new StateResult("🎓 Введите потоки\nФормат: ИТ/б-22-о, ИВТ/б-21-о", StateAction.Stay);
             case "группам":
                 _targetType = "groups";
-                _step = 2;
-                return StateResult.Success("👥 Введите группы\nФормат: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
+                Step = 2;
+                return new StateResult("👥 Введите группы\nФормат: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
             default:
-                return StateResult.Success("❌ Используйте кнопки для выбора", StateAction.Stay);
+                return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay);
         }
     }
 
@@ -103,11 +99,11 @@ public class EventState : BaseState
 
         if (!_targetGroups.Any())
         {
-            return StateResult.Success("❌ Неверный формат\n📝 Пример: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
+            return new StateResult("❌ Неверный формат\n📝 Пример: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
         }
 
-        _step = 3;
-        return StateResult.Success("📝 Введите заголовок события:", StateAction.Stay);
+        Step = 3;
+        return new StateResult("📝 Введите заголовок события:", StateAction.Stay);
     }
 
     private string _eventTitle = "";
@@ -118,43 +114,40 @@ public class EventState : BaseState
         _eventTitle = message.Text ?? "";
         if (string.IsNullOrEmpty(_eventTitle))
         {
-            return StateResult.Success("❌ Заголовок обязателен\n📝 Введите название события:", StateAction.Stay);
+            return new StateResult("❌ Заголовок обязателен\n📝 Введите название события:", StateAction.Stay);
         }
 
-        _step = 4;
-        return StateResult.Success("📄 Отправьте текст события:", StateAction.Stay);
+        Step = 4;
+        return new StateResult("📄 Отправьте текст события:", StateAction.Stay);
     }
 
     private StateResult ProcessEventTextStep(UserMessage message)
     {
         _eventContentMessageId = message.MessageId;
-        _step = 5;
-        return StateResult.Success("⏰ Введите количество часов для ответов:", StateAction.Stay);
+        Step = 5;
+        return new StateResult("⏰ Введите количество часов для ответов:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessEventText(UserMessage message)
     {
         if (!int.TryParse(message.Text, out var hours) || hours <= 0)
         {
-            return StateResult.Success("❌ Неверный формат\n⏰ Введите количество часов:", StateAction.Stay);
+            return new StateResult("❌ Неверный формат\n⏰ Введите количество часов:", StateAction.Stay);
         }
 
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var recipients = await GetRecipients(context);
+        var recipients = await GetRecipients();
 
         var msg = new Message
         {
             SenderId = message.UserId,
             Payload = $"{{\"type\":\"{PayloadType.Event}\",\"title\":\"{_eventTitle.Replace("\"", "\\\"")}\",\"targets\":\"{string.Join(",", _targetGroups)}\",\"deadline\":\"{DateTime.UtcNow.AddHours(hours):yyyy-MM-ddTHH:mm:ssZ}\"}}"
         };
-        context.Messages.Add(msg);
-        await context.SaveChangesAsync();
+        _context.Messages.Add(msg);
+        await _context.SaveChangesAsync();
 
         foreach (var recipient in recipients)
         {
-            context.MessageDeliveries.Add(new MessageDelivery
+            _context.MessageDeliveries.Add(new MessageDelivery
             {
                 MessageId = msg.Id,
                 RecipientId = recipient.VkUserId,
@@ -162,25 +155,25 @@ public class EventState : BaseState
                 DispatchTime = DateTime.UtcNow
             });
         }
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
         keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"type\":\"{PayloadType.Excel}\",\"messageId\":{msg.Id}}}");
         
-        return StateResult.Success($"✅ Событие отправлено\n👥 Получателей: {recipients.Count}\n⏰ Время ответа: {hours}ч", StateAction.End, keyboard: keyboard);
+        return new StateResult($"✅ Событие отправлено\n👥 Получателей: {recipients.Count}\n⏰ Время ответа: {hours}ч", StateAction.End, keyboard: keyboard);
     }
 
-    private async Task<List<User>> GetRecipients(AppDbContext context)
+    private async Task<List<User>> GetRecipients()
     {
         return _targetType switch
         {
-            "all" => await context.Users.Where(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString()).ToListAsync(),
-            "groups" => await context.Users.Include(u => u.Group)
+            "all" => await _context.Users.Where(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString()).ToListAsync(),
+            "groups" => await _context.Users.Include(u => u.Group)
                 .Where(u => u.IsConfirmed && !u.IsBlocked && u.Group != null && 
                            _targetGroups.Contains(u.Group.Name) && u.Role == UserRole.Student.ToString())
                 .ToListAsync(),
-            "cohort" => await context.Users.Include(u => u.Group)
+            "cohort" => await _context.Users.Include(u => u.Group)
                 .Where(u => u.IsConfirmed && !u.IsBlocked && u.Group != null && 
                            _targetGroups.Any(cohort => u.Group.Name.StartsWith(cohort)) && u.Role == UserRole.Student.ToString())
                 .ToListAsync(),

@@ -8,22 +8,24 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.VK.Enums;
 using System.Text.RegularExpressions;
+using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
+[State("тревога", UserRole.Admin)]
+[Description(0, "Воздушная тревога\n" +
+    "Мгновенная отправка уведомления о воздушной тревоге всем студентам. Ответ только числом - количество студентов в укрытии. Время на ответ: 2 часа.")]
 public class AlertState : BaseState
 {
+    [NonSerialized]
+    private readonly AppDbContext _context;
+
+    public AlertState(AppDbContext context) 
+    { 
+        _context = context;
+    }
 
 
-    public AlertState(IServiceProvider serviceProvider) : base(serviceProvider) { }
-
-    public override string Description => "Воздушная тревога\nМгновенная отправка уведомления о воздушной тревоге всем студентам. Ответ только числом - количество студентов в укрытии. Время на ответ: 2 часа.";
-
-    public override bool IsEntryPoint => true;
-    public override string? Command => "/alert";
-    public override UserRole[] AllowedRoles => new[] { UserRole.Admin };
-
-    protected override Dictionary<int, Type[]> AvailableStates => new();
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
@@ -32,26 +34,21 @@ public class AlertState : BaseState
 
     private async Task<StateResult> SendAlert()
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var recipients = await context.Users
+        var recipients = await _context.Users
             .Where(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString())
             .ToListAsync();
-            
-        var alertText = "🚨 ВОЗДУШНАЯ ТРЕВОГА!\n\nНемедленно укройтесь в безопасном месте.\nОтветьте ТОЛЬКО ЧИСЛОМ - количество студентов в укрытии.\n\nВремя на ответ: 2 часа.";
 
         var msg = new Message
         {
             SenderId = null,
             Payload = $"{{\"type\":\"{PayloadType.Alert}\",\"deadline\":\"{DateTime.UtcNow.AddHours(5):yyyy-MM-ddTHH:mm:ssZ}\"}}"
         };
-        context.Messages.Add(msg);
-        await context.SaveChangesAsync();
+        _context.Messages.Add(msg);
+        await _context.SaveChangesAsync();
 
         foreach (var recipient in recipients)
         {
-            context.MessageDeliveries.Add(new MessageDelivery
+            _context.MessageDeliveries.Add(new MessageDelivery
             {
                 MessageId = msg.Id,
                 RecipientId = recipient.VkUserId,
@@ -59,12 +56,12 @@ public class AlertState : BaseState
                 DispatchTime = DateTime.UtcNow
             });
         }
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
         keyboard.AddButton("Excel", VkButtonColor.Primary, payload: $"{{\"type\":\"{PayloadType.Excel}\",\"messageId\":{msg.Id}}}");
         
-        return StateResult.Success($"✅ Тревога отправлена\n👥 Получателей: {recipients.Count} студентов\n⏰ Время ответа: 2 часа", StateAction.End, keyboard: keyboard);
+        return new StateResult($"✅ Тревога отправлена\n👥 Получателей: {recipients.Count} студентов\n⏰ Время ответа: 2 часа", StateAction.End, keyboard: keyboard);
     }
 }

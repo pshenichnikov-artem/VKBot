@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     
     public DbSet<User> Users { get; set; }
     public DbSet<Group> Groups { get; set; }
+    public DbSet<Faculty> Faculties { get; set; }
     public DbSet<Message> Messages { get; set; }
     public DbSet<MessageDelivery> MessageDeliveries { get; set; }
 
@@ -51,27 +52,7 @@ public class AppDbContext : DbContext
             .HasForeignKey(md => md.RecipientId)
             .OnDelete(DeleteBehavior.Cascade);
         
-        // Глобальный фильтр для исключения удаленных пользователей
+        // Глобальные фильтры для пользователей
         modelBuilder.Entity<User>().HasQueryFilter(u => !u.IsDeleted);
-        
-        // Захардкоженные админы
-        modelBuilder.Entity<User>().HasData(
-            new User
-            {
-                VkUserId = 651565729,
-                FullName = "Admin 1",
-                Role = UserRole.Admin.ToString(),
-                IsConfirmed = true,
-                GroupId = null
-            },
-            new User
-            {
-                VkUserId = 562436407,
-                FullName = "Admin 2",
-                Role = UserRole.Admin.ToString(),
-                IsConfirmed = true,
-                GroupId = null
-            }
-        );
     }
 }

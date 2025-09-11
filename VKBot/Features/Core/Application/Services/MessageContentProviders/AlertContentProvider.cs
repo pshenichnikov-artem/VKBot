@@ -23,6 +23,6 @@ public class AlertContentProvider : IMessageContentProvider
         keyboard.AddRow();
         keyboard.AddButton("Ответить", VkButtonColor.Negative, payload: $"{{\"type\":\"{PayloadType.AlertResponse}\",\"messageId\":{message.Id}}}");
 
-        return StateResult.Success(text, StateAction.End, keyboard: keyboard);
+        return new StateResult(text, StateAction.End, keyboard: keyboard);
     }
 }

@@ -11,18 +11,16 @@ namespace VKBot.Features.VK.Application.Services;
 public class VkBot : IVkBot
 {
     private readonly HttpClient _httpClient;
-    private readonly UpdateParseService _parseService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<VkBot> _logger;
     private readonly string _accessToken;
     private readonly string _groupId;
 
-    public VkBot(HttpClient httpClient, IConfiguration configuration, ILogger<VkBot> logger, UpdateParseService parseService)
+    public VkBot(HttpClient httpClient, IConfiguration configuration, ILogger<VkBot> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
-        _parseService = parseService;
         _accessToken = _configuration["VK:AccessToken"] ?? throw new InvalidOperationException("VK AccessToken не настроен");
         _groupId = _configuration["VK:GroupId"] ?? throw new InvalidOperationException("VK GroupId не настроен");
     }
@@ -51,12 +49,12 @@ public class VkBot : IVkBot
         }
     }
 
-    public async Task<List<VkMessageItem>> GetUpdatesAsync(LongPollServer? server)
+    public async Task<LongPollResponse?> GetUpdatesAsync(LongPollServer? server)
     {
         if (server?.Server == null || server.Key == null)
         {
             _logger.LogError("[VkBot] LongPoll сервер не инициализирован");
-            return new List<VkMessageItem>();
+            return null;
         }
 
         var url = $"https://{server.Server}?act=a_check&key={server.Key}&ts={server.Ts}&wait=25";
@@ -68,31 +66,22 @@ public class VkBot : IVkBot
             
             if (result == null)
             {
-                _logger.LogError("[VkBot] Пустой ответ от LongPoll");
-                return new List<VkMessageItem>();
+                return null;
             }
 
             if (result.Failed > 0)
             {
                 _logger.LogWarning("[VkBot] LongPoll ошибка {Failed}", result.Failed);
-                server = await GetLongPollServerAsync();
-                return new List<VkMessageItem>();
+                return result;
             }
 
             server.Ts = result.Ts;
-            var messages = await _parseService.GetNewMessages(result.Updates);
-            
-            if (messages.Count > 0)
-            {
-                _logger.LogInformation("[VkBot] Получено {Count} новых сообщений", messages.Count);
-            }
-
-            return messages;
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[VkBot] Ошибка получения обновлений");
-            return new List<VkMessageItem>();
+            return null;
         }
     }
 
@@ -126,9 +115,8 @@ public class VkBot : IVkBot
             {
                 if (!string.IsNullOrEmpty(attachment.FilePath))
                 {
-                    // Отправляем файл отдельно
                     await SendDocumentAsync(peerId, attachment.FilePath, message);
-                    return null; // Возвращаем null, так как сообщение уже отправлено
+                    return null;
                 }
                 else if (attachment.OwnerId.HasValue && attachment.MediaId.HasValue)
                 {

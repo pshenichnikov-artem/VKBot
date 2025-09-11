@@ -8,51 +8,48 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.VK.Enums;
 using System.Text.Json;
+using VKBot.Features.VK.Application.Middleware.Attributes;
+using VKBot.Features.VK.Application.Interfaces;
 
 namespace VKBot.Features.Core.Application.States;
 
+[State("вопросы", UserRole.Admin)]
+[Description(0, "❓ Обработка вопросов студентов\nКоманда для просмотра и ответов на вопросы от студентов. Показывает список новых вопросов с возможностью ответить, удалить или пропустить.")]
+[Description(1, "📋 Начало обработки\nНажмите 'Перейти к ответам' для пошагового рассмотрения вопросов")]
+[Description(2, "📄 Рассмотрение вопроса\nВыберите действие: ответить, удалить или пропустить вопрос")]
+[Description(3, "📝 Написание ответа\nНапишите подробный ответ на вопрос студента")]
 public class AnswerQuestionState : BaseState
 {
+    [NonSerialized]
+    private readonly AppDbContext _context;
+    [NonSerialized]
+    private readonly IVkBot _vkBot;
     private List<Message> _questions = new();
     private int _currentQuestionIndex = 0;
 
-    public AnswerQuestionState(IServiceProvider serviceProvider) : base(serviceProvider) { }
-
-    public override string Description => _step switch
-    {
-        0 => "❓ Обработка вопросов студентов\nКоманда для просмотра и ответов на вопросы от студентов. Показывает список новых вопросов с возможностью ответить, удалить или пропустить.",
-        1 => "📋 Начало обработки\nНажмите 'Перейти к ответам' для пошагового рассмотрения вопросов",
-        2 => "📄 Рассмотрение вопроса\nВыберите действие: ответить, удалить или пропустить вопрос",
-        3 => "📝 Написание ответа\nНапишите подробный ответ на вопрос студента",
-        _ => "❌ Ошибка в процессе обработки вопросов"
-    };
-
-    public override bool IsEntryPoint => true;
-    public override string? Command => "/questions";
-    public override UserRole[] AllowedRoles => new[] { UserRole.Admin };
-
-    protected override Dictionary<int, Type[]> AvailableStates => new();
+    public AnswerQuestionState(AppDbContext context, IVkBot vkBot) 
+    { 
+        _context = context;
+        _vkBot = vkBot;
+    }
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
-        return _step switch
+        return Step switch
         {
             0 => await ShowQuestions(),
             1 => ProcessMainAction(message),
             2 => await ProcessQuestionAction(message),
             3 => await ProcessAnswer(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => new StateResult("Ошибка", StateAction.End)
         };
     }
 
     private async Task<StateResult> ShowQuestions()
     {
-        _step = 1;
+        Step = 1;
 
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        _questions = await context.Messages
+        _questions = await _context.Messages
             .Include(m => m.Sender)
             .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Question}\"") && 
                    !m.Payload.Contains("\"answered\":true"))
@@ -61,7 +58,7 @@ public class AnswerQuestionState : BaseState
 
         if (!_questions.Any())
         {
-            return StateResult.Success("❓ Нет новых вопросов", StateAction.End);
+            return new StateResult("❓ Нет новых вопросов", StateAction.End);
         }
 
         var questionsList = $"Вопросы ({_questions.Count}):\n";
@@ -78,19 +75,19 @@ public class AnswerQuestionState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Перейти к ответам", VkButtonColor.Primary);
 
-        return StateResult.Success(questionsList, StateAction.Stay, keyboard: keyboard);
+        return new StateResult(questionsList, StateAction.Stay, keyboard: keyboard);
     }
 
     private StateResult ProcessMainAction(UserMessage message)
     {
         if (message.Text?.ToLower().Trim() == "перейти к ответам")
         {
-            _step = 2;
+            Step = 2;
             _currentQuestionIndex = 0;
             return ShowCurrentQuestion();
         }
 
-        return StateResult.Success("❌ Используйте кнопки для выбора", StateAction.Stay);
+        return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessQuestionAction(UserMessage message)
@@ -100,13 +97,13 @@ public class AnswerQuestionState : BaseState
         switch (action)
         {
             case "ответить":
-                _step = 3;
-                return StateResult.Success("📝 Введите ответ на вопрос:", StateAction.Stay);
+                Step = 3;
+                return new StateResult("📝 Введите ответ на вопрос:", StateAction.Stay);
             case "удалить":
                 await DeleteQuestion();
                 break;
             case "закончить ответы на вопросы":
-                return StateResult.Success("✅ Ответы на вопросы завершены", StateAction.End);
+                return new StateResult("✅ Ответы на вопросы завершены", StateAction.End);
             case "пропустить":
                 break;
         }
@@ -115,7 +112,7 @@ public class AnswerQuestionState : BaseState
 
         if (_currentQuestionIndex >= _questions.Count)
         {
-            return StateResult.Success("Все вопросы обработаны", StateAction.End);
+            return new StateResult("Все вопросы обработаны", StateAction.End);
         }
 
         return ShowCurrentQuestion();
@@ -126,31 +123,27 @@ public class AnswerQuestionState : BaseState
         var answerText = message.Text;
         if (string.IsNullOrEmpty(answerText))
         {
-            return StateResult.Success("❌ Ответ обязателен\n📝 Напишите ответ:", StateAction.Stay);
+            return new StateResult("❌ Ответ обязателен\n📝 Напишите ответ:", StateAction.Stay);
         }
-
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var vkBot = scope.ServiceProvider.GetRequiredService<VKBot.Features.VK.Application.Interfaces.IVkBot>();
 
         var currentQuestion = _questions[_currentQuestionIndex];
         
         // Отправляем ответ напрямую пользователю
-        await vkBot.SendMessageAsync(currentQuestion.SenderId!.Value, $"❓ Ответ на ваш вопрос:\n\n{answerText}");//TODO ответ на сообщение пользователя
+        await _vkBot.SendMessageAsync(currentQuestion.SenderId!.Value, $"❓ Ответ на ваш вопрос:\n\n{answerText}");//TODO ответ на сообщение пользователя
 
         // Отмечаем вопрос как отвеченный
-        var questionToUpdate = await context.Messages.FirstAsync(m => m.Id == currentQuestion.Id);
+        var questionToUpdate = await _context.Messages.FirstAsync(m => m.Id == currentQuestion.Id);
         var payload = JsonSerializer.Deserialize<JsonElement>(questionToUpdate.Payload!);
         var text = payload.GetProperty("text").GetString();
         questionToUpdate.Payload = $"{{\"type\":\"{PayloadType.Question}\",\"text\":\"{text}\",\"answered\":true}}";
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         _currentQuestionIndex++;
-        _step = 2;
+        Step = 2;
 
         if (_currentQuestionIndex >= _questions.Count)
         {
-            return StateResult.Success("Все вопросы обработаны", StateAction.End);
+            return new StateResult("Все вопросы обработаны", StateAction.End);
         }
 
         return ShowCurrentQuestion();
@@ -175,17 +168,14 @@ public class AnswerQuestionState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Закончить ответы на вопросы", VkButtonColor.Secondary);
 
-        return StateResult.Success(questionInfo, StateAction.Stay, keyboard: keyboard);
+        return new StateResult(questionInfo, StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task DeleteQuestion()
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
         var currentQuestion = _questions[_currentQuestionIndex];
-        var dbQuestion = await context.Messages.FirstAsync(m => m.Id == currentQuestion.Id);
-        context.Messages.Remove(dbQuestion);
-        await context.SaveChangesAsync();
+        var dbQuestion = await _context.Messages.FirstAsync(m => m.Id == currentQuestion.Id);
+        _context.Messages.Remove(dbQuestion);
+        await _context.SaveChangesAsync();
     }
 }

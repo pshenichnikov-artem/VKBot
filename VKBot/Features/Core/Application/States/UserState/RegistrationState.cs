@@ -8,83 +8,167 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using VKBot.Features.VK.Application.Middleware.Attributes;
+using VKBot.Features.VK.Enums;
+using VKBot.Features.VK.Domain.Models;
 
 namespace VKBot.Features.Core.Application.States.UserState;
 
+[State("начать", UserRole.Unregistered)]
+[Description(0, "🎓 Регистрация в системе")]
+[Description(1, "🏛️ Выбор факультета")]
+[Description(2, "👥 Выбор группы")]
+[Description(3, "👤 Укажите ваше ФИО")]
 public class RegistrationState : BaseState
 {
-    private string? _groupName;
+    [NonSerialized]
+    private readonly AppDbContext _context;
+    [NonSerialized]
+    private readonly UserNotificationService _notificationService;
+    private int _facultyId;
+    private long _groupId;
+    private int _groupPage = 0;
+    private const int GroupsPerPage = 8;
 
-    public RegistrationState(IServiceProvider serviceProvider) : base(serviceProvider) { }
-
-    public override string Description => _step switch
-    {
-        0 => "🎓 Регистрация в системе университета\n🤖 Этот бот помогает студентам и администрации университета обмениваться важной информацией:\n\n🚨 Оповещения о воздушных тревогах\n📢 Уведомления о событиях и мероприятиях\n❓ Обращения к администрации\n📈 Отчеты и статистика\n\nДля регистрации укажите вашу группу и ФИО. После подтверждения администратором вы получите доступ ко всем функциям.",
-        1 => "🎓 Укажите вашу группу\nВведите название вашей группы в формате ИТ/б-22-1-о.",
-        2 => "👤 Укажите ваше ФИО\nВведите ваше полное ФИО в формате Иванов Иван Иванович.",
-        _ => "❌ Ошибка в процессе регистрации"
-    };
-
-    public override bool IsEntryPoint => true;
-    public override string? Command => "начать";
-    public override UserRole[] AllowedRoles => new[] { UserRole.Unregistered };
-
-    protected override Dictionary<int, Type[]> AvailableStates => new();
+    public RegistrationState(AppDbContext context, UserNotificationService notificationService)
+    { 
+        _context = context;
+        _notificationService = notificationService;
+    }
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
-        return _step switch
+        return Step switch
         {
             0 => await StartRegistration(message),
-            1 => await ProcessGroup(message),
-            2 => await ProcessFullName(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            1 => await ProcessFaculty(message),
+            2 => await ProcessGroup(message),
+            3 => await ProcessFullName(message),
+            _ => new StateResult("Ошибка", StateAction.End)
         };
     }
 
     private async Task<StateResult> StartRegistration(UserMessage message)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var existingUser = await context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.VkUserId == message.UserId);
+        var existingUser = await _context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.VkUserId == message.UserId);
 
         if (existingUser != null)
         {
             if (existingUser.IsBlocked)
             {
-                return StateResult.Success("🚫 Ваш аккаунт заблокирован\nОбратитесь к администрации", StateAction.End);
+                return new StateResult("🚫 Ваш аккаунт заблокирован\nОбратитесь к администрации", StateAction.End);
             }
             if (!existingUser.IsDeleted)
             {
-                return StateResult.Success("✅ Вы уже зарегистрированы\n⏳ Ожидайте подтверждения", StateAction.End);
+                return new StateResult("✅ Вы уже зарегистрированы\n⏳ Ожидайте подтверждения", StateAction.End);
             }
         }
 
-        _step = 1;
-        return StateResult.Success("👋 Добро пожаловать в систему университета!\n\n🤖 Этот бот - официальная система связи между администрацией университета и студентами. Он обеспечивает быструю и надежную передачу важной информации.\n\n🔴 ОСНОВНЫЕ ФУНКЦИИ:\n\n🚨 ВОЗДУШНЫЕ ТРЕВОГИ\n• Мгновенные уведомления о сигналах тревоги\n• Отчеты о количестве студентов в укрытиях\n• Контроль безопасности студентов\n\n📢 СОБЫТИЯ И МЕРОПРИЯТИЯ\n• Уведомления о важных событиях\n• Обязательные опросы и анкетирования\n• Отслеживание ответов студентов\n\n❓ ОБРАЩЕНИЯ К АДМИНИСТРАЦИИ\n• Прямая связь с администрацией\n• Отправка вопросов и обращений\n• Получение официальных ответов\n\n📈 ОТЧЕТНОСТЬ И СТАТИСТИКА\n• Автоматические отчеты в Excel\n• Контроль прочтения сообщений\n• Напоминания о непрочитанных сообщениях\n\n🔒 БЕЗОПАСНОСТЬ\nВсе данные защищены и используются только для официальных целей университета.\n\n🎓 Для начала работы введите название вашей группы:\nФормат: ИТ/б-22-1-о", StateAction.Stay);
+        Step = 1;
+        return await ShowFaculties();
     }
 
+    private async Task<StateResult> ShowFaculties()
+    {
+        var faculties = await _context.Faculties.OrderBy(f => f.Name).ToListAsync();
+        
+        if (!faculties.Any())
+        {
+            return new StateResult("❌ Факультеты не настроены\nОбратитесь к администрации", StateAction.End);
+        }
+        
+        var text = "👋 Добро пожаловать!\n🏛️ Выберите ваш факультет:";
+        
+        var keyboard = VkKeyboard.Create(false, true);
+        for (int i = 0; i < faculties.Count; i++)
+        {
+            if (i % 2 == 0) keyboard.AddRow();
+            keyboard.AddButton(faculties[i].Name, VkButtonColor.Primary);
+        }
+        
+        return new StateResult(text, StateAction.Stay, keyboard: keyboard);
+    }
+    
+    private async Task<StateResult> ProcessFaculty(UserMessage message)
+    {
+        var facultyName = message.Text?.Trim();
+        var faculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name.ToLower() == facultyName.ToLower());
+        
+        if (faculty == null)
+        {
+            return new StateResult("❌ Используйте кнопки для выбора факультета", StateAction.Stay);
+        }
+        
+        _facultyId = faculty.Id;
+        _groupPage = 0;
+        Step = 2;
+        
+        return await ShowGroups();
+    }
+    
+    private async Task<StateResult> ShowGroups()
+    {
+        var groups = await _context.Groups
+            .Where(g => g.FacultyId == _facultyId)
+            .OrderBy(g => g.Name)
+            .Skip(_groupPage * GroupsPerPage)
+            .Take(GroupsPerPage + 1)
+            .ToListAsync();
+            
+        if (!groups.Any())
+        {
+            return new StateResult("❌ В выбранном факультете нет групп\nОбратитесь к администрации", StateAction.End);
+        }
+        
+        var hasMore = groups.Count > GroupsPerPage;
+        var displayGroups = hasMore ? groups.Take(GroupsPerPage).ToList() : groups;
+        
+        var text = $"👥 Выберите вашу группу (стр. {_groupPage + 1}):";
+        
+        var keyboard = VkKeyboard.Create(false, true);
+        for (int i = 0; i < displayGroups.Count; i++)
+        {
+            if (i % 2 == 0) keyboard.AddRow();
+            keyboard.AddButton(displayGroups[i].Name, VkButtonColor.Primary);
+        }
+        
+        if (_groupPage > 0 || hasMore)
+        {
+            keyboard.AddRow();
+            if (_groupPage > 0)
+                keyboard.AddButton("◀️ Назад", VkButtonColor.Secondary);
+            if (hasMore)
+                keyboard.AddButton("Далее ▶️", VkButtonColor.Secondary);
+        }
+        
+        return new StateResult(text, StateAction.Stay, keyboard: keyboard);
+    }
+    
     private async Task<StateResult> ProcessGroup(UserMessage message)
     {
-        _groupName = message.Text?.Trim();
-
-        if (string.IsNullOrEmpty(_groupName))
+        var input = message.Text?.Trim();
+        
+        if (input == "◀️ Назад")
         {
-            return StateResult.Success("❌ Название группы обязательно\n🎓 Пример: ИТ/б-22-1-о", StateAction.Stay);
+            _groupPage--;
+            return await ShowGroups();
         }
-
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var group = await context.Groups.FirstOrDefaultAsync(g => g.Name == _groupName);
+        
+        if (input == "Далее ▶️")
+        {
+            _groupPage++;
+            return await ShowGroups();
+        }
+        
+        var group = await _context.Groups.FirstOrDefaultAsync(g => g.Name.ToLower() == input.ToLower() && g.FacultyId == _facultyId);
         if (group == null)
         {
-            return StateResult.Success("❌ Группа не найдена\n🎓 Проверьте название: ИТ/б-22-1-о", StateAction.Stay);
+            return new StateResult("❌ Используйте кнопки для выбора группы", StateAction.Stay);
         }
-
-        _step = 2;
-        return StateResult.Success("👤 Введите ваше ФИО:", StateAction.Stay);
+        
+        _groupId = group.Id;
+        Step = 3;
+        return new StateResult("👤 Введите ваше ФИО:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessFullName(UserMessage message)
@@ -93,14 +177,11 @@ public class RegistrationState : BaseState
 
         if (string.IsNullOrEmpty(fullName))
         {
-            return StateResult.Success("❌ ФИО обязательно\n👤 Введите ваше ФИО:", StateAction.Stay);
+            return new StateResult("❌ ФИО обязательно\n👤 Введите ваше ФИО:", StateAction.Stay);
         }
 
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var group = await context.Groups.FirstAsync(g => g.Name == _groupName);
-        var existingUser = await context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.VkUserId == message.UserId);
+        var group = await _context.Groups.FirstAsync(g => g.Id == _groupId);
+        var existingUser = await _context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.VkUserId == message.UserId);
 
         if (existingUser != null && existingUser.IsDeleted && !existingUser.IsBlocked)
         {
@@ -124,24 +205,21 @@ public class RegistrationState : BaseState
                 IsDeleted = false,
                 GroupId = group.Id
             };
-            context.Users.Add(user);
+            _context.Users.Add(user);
         }
 
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         // Уведомляем администраторов о новой регистрации
-        var admins = await context.Users.IgnoreQueryFilters()
+        var admins = await _context.Users.IgnoreQueryFilters()
             .Where(u => u.Role == UserRole.Admin.ToString() && u.IsConfirmed && !u.IsBlocked)
             .ToListAsync();
 
-        var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
         foreach (var admin in admins)
         {
-            await notificationService.SendNewRegistrationNotification(admin.VkUserId, fullName, _groupName!);
+            await _notificationService.SendNewRegistrationNotification(admin.VkUserId, fullName, group.Name);
         }
 
-        return StateResult.Success("✅ Регистрация завершена\n⏳ Ожидайте подтверждения", StateAction.End);
+        return new StateResult("✅ Регистрация завершена\n⏳ Ожидайте подтверждения", StateAction.End);
     }
-
-
 }

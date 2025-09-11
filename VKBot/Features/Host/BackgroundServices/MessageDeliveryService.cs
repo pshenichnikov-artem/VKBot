@@ -1,22 +1,29 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VKBot.Features.Core.Application.Services;
 using VKBot.Features.Core.Data;
 using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.VK.Application.Interfaces;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace VKBot.Features.Host.BackgroundServices;
 
 public class MessageDeliveryService : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly AppDbContext _context;
+    private readonly IVkBot _vkBot;
+    private readonly MessageContentService _contentService;
+    private readonly IMemoryCache _memoryCache;
     private readonly ILogger<MessageDeliveryService> _logger;
 
-    public MessageDeliveryService(IServiceProvider serviceProvider, ILogger<MessageDeliveryService> logger)
+    public MessageDeliveryService(AppDbContext context, IVkBot vkBot, MessageContentService contentService, 
+        IMemoryCache memoryCache, ILogger<MessageDeliveryService> logger)
     {
-        _serviceProvider = serviceProvider;
+        _context = context;
+        _vkBot = vkBot;
+        _contentService = contentService;
+        _memoryCache = memoryCache;
         _logger = logger;
     }
 
@@ -41,30 +48,23 @@ public class MessageDeliveryService : BackgroundService
 
     private async Task ProcessPendingMessages()
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
-        var contentService = scope.ServiceProvider.GetRequiredService<MessageContentService>();
-
-        var pendingDeliveries = await context.MessageDeliveries
+        var pendingDeliveries = await _context.MessageDeliveries
             .Include(md => md.Message)
             .Where(md => md.DeliveryStatus == MessageStatus.Pending.ToString())
             .ToListAsync();
 
-        var memoryCache = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-
         foreach (var delivery in pendingDeliveries)
         {
             var stateMachineKey = $"state_machine_{delivery.RecipientId}";
-            if (memoryCache.TryGetValue(stateMachineKey, out _))
+            if (_memoryCache.TryGetValue(stateMachineKey, out _))
             {
                 continue;
             }
 
             try
             {
-                var result = await contentService.GenerateMessageContent(delivery.Message);
-                var messageId = await vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
+                var result = await _contentService.GenerateMessageContent(delivery.Message);
+                var messageId = await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
 
                 if (messageId.HasValue)
                 {
@@ -89,17 +89,12 @@ public class MessageDeliveryService : BackgroundService
             }
         }
 
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
     }
 
     private async Task ProcessRetries()
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
-        var contentService = scope.ServiceProvider.GetRequiredService<MessageContentService>();
-
-        var failedDeliveries = await context.MessageDeliveries
+        var failedDeliveries = await _context.MessageDeliveries
             .Include(md => md.Message)
             .Where(md => md.DeliveryStatus == MessageStatus.Error.ToString() && 
                         md.RetryCount < 3 && 
@@ -107,21 +102,18 @@ public class MessageDeliveryService : BackgroundService
             .Take(5)
             .ToListAsync();
 
-        var memoryCache = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-
         foreach (var delivery in failedDeliveries)
         {
-            // Проверяем, есть ли активная StateMachine у пользователя
             var stateMachineKey = $"state_machine_{delivery.RecipientId}";
-            if (memoryCache.TryGetValue(stateMachineKey, out _))
+            if (_memoryCache.TryGetValue(stateMachineKey, out _))
             {
                 continue;
             }
 
             try
             {
-                var result = await contentService.GenerateMessageContent(delivery.Message);
-                var messageId = await vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
+                var result = await _contentService.GenerateMessageContent(delivery.Message);
+                var messageId = await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
 
                 if (messageId.HasValue)
                 {
@@ -142,16 +134,12 @@ public class MessageDeliveryService : BackgroundService
             }
         }
 
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
     }
 
     private async Task ProcessReminders()
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
-
-        var reminders = await context.MessageDeliveries
+        var reminders = await _context.MessageDeliveries
             .Include(md => md.Message)
             .Where(md => md.DeliveryStatus == MessageStatus.Sent.ToString() && 
                         !md.isRead && 
@@ -168,7 +156,7 @@ public class MessageDeliveryService : BackgroundService
             {
                 try
                 {
-                    await vkBot.SendMessageAsync(delivery.RecipientId, "⏰ Напоминание\n📨 У вас есть непрочитанное сообщение");
+                    await _vkBot.SendMessageAsync(delivery.RecipientId, "⏰ Напоминание\n📨 У вас есть непрочитанное сообщение");
                     delivery.LastReminderAt = DateTime.UtcNow;
                 }
                 catch (Exception ex)
@@ -178,6 +166,6 @@ public class MessageDeliveryService : BackgroundService
             }
         }
 
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
     }
 }

@@ -1,48 +1,40 @@
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.Core.Enums;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace VKBot.Features.Core.Application.States;
 
+[Serializable]
 public abstract class BaseState
 {
-    protected IServiceProvider _serviceProvider { get; private set; }
-    protected int _step = 0;
+    public int Step { get; protected set; } = 0;
 
-    protected BaseState(IServiceProvider serviceProvider)
+    public void ReInject(IServiceProvider serviceProvider)
     {
-        _serviceProvider = serviceProvider;
-    }
-    
-    public abstract string Description { get; }
-    public abstract bool IsEntryPoint { get; }
-    public abstract string? Command { get; }
-    public abstract UserRole[] AllowedRoles { get; }
-    
-    protected abstract Dictionary<int, Type[]> AvailableStates { get; }
-
-    public StateResult? CheckTransition(UserMessage message)
-    {
-        if (!AvailableStates.TryGetValue(_step, out var availableStates))
-            return null;
-
-        foreach (var stateType in availableStates)
+        var allFields = GetType().GetFields();
+        var unmarkedServiceFields = new List<FieldInfo>();
+        
+        foreach (var field in allFields)
         {
-            var state = (BaseState)_serviceProvider.GetRequiredService(stateType);
-            if (state.Command == message.Text?.ToLower().Trim())
+            var service = serviceProvider.GetService(field.FieldType);
+            if (service != null)
             {
-                return StateResult.Success("", StateAction.Next, stateType);
+                field.SetValue(this, service);
+                
+                if (field.GetCustomAttribute<NonSerializedAttribute>() == null)
+                {
+                    unmarkedServiceFields.Add(field);
+                }
             }
         }
-
-        return null;
+        
+        if (unmarkedServiceFields.Any())
+        {
+            throw new InvalidOperationException($"Поля сервисов должны быть помечены [NonSerialized]: {string.Join(", ", unmarkedServiceFields.Select(f => f.Name))}");
+        }
     }
 
     public abstract Task<StateResult> ExecuteAsync(UserMessage message);
-    
-    public void SetServiceProvider(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
 }

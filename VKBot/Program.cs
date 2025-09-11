@@ -1,35 +1,43 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Serilog;
 using VKBot.Features.Core.Data;
 using VKBot.Features.Core.Infrastructure;
+using VKBot.Features.Host.BackgroundServices;
 using VKBot.Features.Host.Infrastructure;
+using VKBot.Features.Host.Services;
 using VKBot.Features.VK.Infrastructure;
 
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Configuration
+var configuration = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
-    .AddEnvironmentVariables();
+    .Build();
 
-builder.Services.AddSerilog((context, configuration) => 
-    configuration.ReadFrom.Configuration(builder.Configuration));
+var services = new ServiceCollection();
+
+services.AddSingleton<IConfiguration>(configuration);
+services.AddLogging(builder => builder.AddSerilog());
 
 // Features
-builder.Services.AddVkFeature();
-builder.Services.AddCoreFeature(builder.Configuration);
-builder.Services.AddHostFeature();
+services.AddVkFeature();
+services.AddHostFeature();
+services.AddCoreFeature(configuration);
 
-var app = builder.Build();
+var serviceProvider = services.BuildServiceProvider();
 
-using (var scope = app.Services.CreateScope())
+using (var scope = serviceProvider.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     context.Database.Migrate();
 }
 
-await app.RunAsync();
+var longPollService = serviceProvider.GetRequiredService<VkLongPollService>();
+var cts = new CancellationTokenSource();
+
+Console.CancelKeyPress += (_, e) => {
+    e.Cancel = true;
+    cts.Cancel();
+};
+
+await longPollService.StartAsync(cts.Token);

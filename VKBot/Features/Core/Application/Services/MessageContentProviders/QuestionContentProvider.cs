@@ -14,21 +14,18 @@ namespace VKBot.Features.Core.Application.Services.MessageContentProviders;
 
 public class QuestionContentProvider : IMessageContentProvider
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly AppDbContext _context;
 
-    public QuestionContentProvider(IServiceProvider serviceProvider)
+    public QuestionContentProvider(AppDbContext context)
     {
-        _serviceProvider = serviceProvider;
+        _context = context;
     }
 
     public string GetMessageType() => PayloadType.Question.ToString();
 
     public async Task<StateResult> GenerateMessageContent(Message message)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var sender = await context.Users
+        var sender = await _context.Users
             .Include(u => u.Group)
             .FirstOrDefaultAsync(u => u.VkUserId == message.SenderId);
 
@@ -36,12 +33,12 @@ public class QuestionContentProvider : IMessageContentProvider
         var questionText = payload.GetProperty("text").GetString();
 
         var text = $"❓ У вас новые вопросы от студентов\n\n" +
-                   $"Используйте /questions для просмотра";
+                   $"Используйте 'Вопросы' для просмотра";
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
-        keyboard.AddButton("/questions", VkButtonColor.Primary);
+        keyboard.AddButton("Вопросы", VkButtonColor.Primary);
 
-        return StateResult.Success(text, StateAction.End, keyboard: keyboard);
+        return new StateResult(text, StateAction.End, keyboard: keyboard);
     }
 }

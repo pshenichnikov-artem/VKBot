@@ -5,40 +5,41 @@ using VKBot.Features.Core.Domain.Entities;
 using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Enums;
+using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States.UserState
 {
+    [State("вопрос", UserRole.Student)]
+    [Description(0, "❓ Обращение к администрации\nКоманда для отправки вопросов администраторам. Опишите вашу проблему или вопрос, и администраторы ответят вам.")]
+    [Description(1, "📝 Напишите вопрос\nОпишите вашу проблему или вопрос подробно")]
     public class QuestionState : BaseState
     {
-        public QuestionState(IServiceProvider serviceProvider) : base(serviceProvider) { }
+        [NonSerialized]
+        private readonly AppDbContext _context;
 
-        public override string Description => _step switch
-        {
-            0 => "❓ Обращение к администрации\nКоманда для отправки вопросов администраторам. Опишите вашу проблему или вопрос, и администраторы ответят вам.",
-            1 => "📝 Напишите вопрос\nОпишите вашу проблему или вопрос подробно",
-            _ => "❌ Ошибка в процессе отправки вопроса"
-        };
+        public QuestionState(AppDbContext context)
+        { 
+            _context = context;
+        }
 
-        public override bool IsEntryPoint => true;
-        public override string? Command => "/question";
-        public override UserRole[] AllowedRoles => new[] { UserRole.Student };
 
-        protected override Dictionary<int, Type[]> AvailableStates => new();
+
+
 
         public override async Task<StateResult> ExecuteAsync(UserMessage message)
         {
-            return _step switch
+            return Step switch
             {
                 0 => AskQuestion(),
                 1 => await ProcessQuestion(message),
-                _ => StateResult.Success("Ошибка", StateAction.End)
+                _ => new StateResult("Ошибка", StateAction.End)
             };
         }
 
         private StateResult AskQuestion()
         {
-            _step = 1;
-            return StateResult.Success("❓ Введите ваш вопрос:", StateAction.Stay);
+            Step = 1;
+            return new StateResult("❓ Введите ваш вопрос:", StateAction.Stay);
         }
 
         private async Task<StateResult> ProcessQuestion(UserMessage message)
@@ -46,13 +47,10 @@ namespace VKBot.Features.Core.Application.States.UserState
             var messageText = message.Text;
             if (string.IsNullOrEmpty(messageText))
             {
-                return StateResult.Success("❌ Вопрос не может быть пустым\n❓ Напишите ваш вопрос:", StateAction.Stay);
+                return new StateResult("❌ Вопрос не может быть пустым\n❓ Напишите ваш вопрос:", StateAction.Stay);
             }
 
-            using var scope = _serviceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-            var admins = await context.Users
+            var admins = await _context.Users
                 .Where(u => u.Role == UserRole.Admin.ToString() && u.IsConfirmed && !u.IsBlocked)
                 .ToListAsync();
 
@@ -61,12 +59,12 @@ namespace VKBot.Features.Core.Application.States.UserState
                 SenderId = message.UserId,
                 Payload = $"{{\"type\":\"{PayloadType.Question}\",\"text\":\"{messageText.Replace("\"", "\\\"")}\"}}"
             };
-            context.Messages.Add(msg);
-            await context.SaveChangesAsync();
+            _context.Messages.Add(msg);
+            await _context.SaveChangesAsync();
 
             foreach (var admin in admins)
             {
-                context.MessageDeliveries.Add(new MessageDelivery
+                _context.MessageDeliveries.Add(new MessageDelivery
                 {
                     MessageId = msg.Id,
                     RecipientId = admin.VkUserId,
@@ -74,9 +72,9 @@ namespace VKBot.Features.Core.Application.States.UserState
                     DispatchTime = DateTime.UtcNow
                 });
             }
-            await context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
 
-            return StateResult.Success($"✅ Вопрос отправлен\n👥 Администраторов: {admins.Count}", StateAction.End);
+            return new StateResult($"✅ Вопрос отправлен\n👥 Администраторов: {admins.Count}", StateAction.End);
         }
     }
 }

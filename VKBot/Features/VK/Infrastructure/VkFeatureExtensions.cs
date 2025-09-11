@@ -3,6 +3,8 @@ using Microsoft.Extensions.Hosting;
 using VKBot.Features.Host.Services;
 using VKBot.Features.VK.Application.Interfaces;
 using VKBot.Features.VK.Application.Services;
+using VKBot.Features.VK.Application.Middleware;
+using VKBot.Features.Host.BackgroundServices;
 
 namespace VKBot.Features.VK.Infrastructure;
 
@@ -11,9 +13,29 @@ public static class VkFeatureExtensions
     public static IServiceCollection AddVkFeature(this IServiceCollection services)
     {
         services.AddHttpClient();
-        services.AddScoped<UpdateParseService>();
-        services.AddScoped<VkLongPollService>();
+
         services.AddScoped<IVkBot, VkBot>();
+        
+        services.Scan(scan => scan
+            .FromAssemblyOf<MiddlewareBase>()
+            .AddClasses(classes => classes.AssignableTo<MiddlewareBase>())
+            .AsSelf()
+            .WithScopedLifetime());
+            
+        services.AddScoped<Pipeline>(provider =>
+        {
+            var pipeline = new Pipeline();
+            
+            // Порядок middleware
+            pipeline.Use(provider.GetRequiredService<ExceptionMiddleware>());
+            pipeline.Use(provider.GetRequiredService<AntiSpamMiddleware>());
+            pipeline.Use(provider.GetRequiredService<ParseMessageMiddleware>());
+            pipeline.Use(provider.GetRequiredService<CommandRouteMiddleware>());
+            pipeline.Use(provider.GetRequiredService<AuthorizeMiddleware>());
+            pipeline.Use(provider.GetRequiredService<StateMachineMiddleware>());
+            
+            return pipeline;
+        });
         
         return services;
     }

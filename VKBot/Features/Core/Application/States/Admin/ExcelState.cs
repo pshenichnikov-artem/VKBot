@@ -8,25 +8,33 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Application.Interfaces;
 using VKBot.Features.Core.Application.Interfaces;
 using System.Text.Json;
+using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
+[State(PayloadType.Excel, UserRole.Admin)]
+[Description(0, "Генерация Excel файла")]
 public class ExcelState : BaseState
 {
-    public ExcelState(IServiceProvider serviceProvider) : base(serviceProvider) { }
+    [NonSerialized]
+    private readonly AppDbContext _context;
+    [NonSerialized]
+    private readonly IVkBot _vkBot;
+    [NonSerialized]
+    private readonly IReadOnlyCollection<IExcelReportProvider> _excelProvider;
 
-    public override string Description => "Генерация Excel файла\nСоздает и отправляет Excel-файл с ответами пользователей";
-    public override bool IsEntryPoint => true;
-    public override string? Command => "Excel";
-    public override UserRole[] AllowedRoles => new[] { UserRole.Admin };
-
-    protected override Dictionary<int, Type[]> AvailableStates => new();
+    public ExcelState(AppDbContext context, IVkBot vkBot, ICollection<IExcelReportProvider> excelProvider)
+    { 
+        _context = context;
+        _vkBot = vkBot;
+        _excelProvider = (IReadOnlyCollection<IExcelReportProvider>)excelProvider;
+    }
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
         if (message.Payload == null || !message.Payload.TryGetValue("messageId", out var messageIdElement))
         {
-            return StateResult.Success("Недоступная функция", StateAction.End);
+            return new StateResult("Недоступная функция", StateAction.End);
         }
         
         long eventMessageId;
@@ -36,40 +44,35 @@ public class ExcelState : BaseState
         }
         catch
         {
-            return StateResult.Success("Ошибка обработки кнопки", StateAction.End);
+            return new StateResult("Ошибка обработки кнопки", StateAction.End);
         }
 
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
-
-        var eventMsg = await context.Messages
+        var eventMsg = await _context.Messages
             .FirstOrDefaultAsync(m => m.Id == eventMessageId && m.Payload != null);
 
         if (eventMsg == null)
         {
-            return StateResult.Success("Сообщение не найдено", StateAction.End);
+            return new StateResult("Сообщение не найдено", StateAction.End);
         }
 
         var eventPayload = JsonSerializer.Deserialize<JsonElement>(eventMsg.Payload!);
         var messageType = eventPayload.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "unknown";
         
-        var providers = scope.ServiceProvider.GetServices<IExcelReportProvider>();
-        var provider = providers.FirstOrDefault(p => p.GetMessageType() == messageType);
+        var provider = _excelProvider.FirstOrDefault(p => p.GetMessageType() == messageType);
         
         if (provider == null)
         {
-            return StateResult.Success("Неподдерживаемый тип сообщения", StateAction.End);
+            return new StateResult("Неподдерживаемый тип сообщения", StateAction.End);
         }
         
-        var deliveries = await context.MessageDeliveries
+        var deliveries = await _context.MessageDeliveries
             .Include(md => md.Recipient)
             .ThenInclude(u => u.Group)
             .Where(md => md.MessageId == eventMessageId)
             .IgnoreQueryFilters()
             .ToListAsync();
             
-        var responses = await context.Messages
+        var responses = await _context.Messages
             .Include(m => m.Sender)
             .Where(m => m.ReplyToMessageId == eventMessageId && m.Payload != null)
             .IgnoreQueryFilters()
@@ -90,7 +93,7 @@ public class ExcelState : BaseState
             FileName = fileName
         };
         
-        return StateResult.Success(provider.GetReportTitle(), StateAction.End, attachments: new List<StateAttachment> { attachment });
+        return new StateResult(provider.GetReportTitle(), StateAction.End, attachments: new List<StateAttachment> { attachment });
     }
 
 

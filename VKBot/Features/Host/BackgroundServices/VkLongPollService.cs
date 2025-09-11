@@ -1,20 +1,25 @@
-using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Text.Json;
 using VKBot.Features.Core.Application.Interfaces;
 using VKBot.Features.Core.Application.Services;
+using VKBot.Features.Core.Domain.Entities;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.VK.Application.Interfaces;
+using VKBot.Features.VK.Application.Middleware;
 using VKBot.Features.VK.Domain.Models;
+
 
 namespace VKBot.Features.Host.Services;
 
-public class VkLongPollService : BackgroundService
+public partial class VkLongPollService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<VkLongPollService> _logger;
+    private readonly ConcurrentDictionary<long, SemaphoreSlim> _userLocks = new();
 
     public VkLongPollService(IServiceProvider serviceProvider, ILogger<VkLongPollService> logger)
     {
@@ -24,177 +29,98 @@ public class VkLongPollService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
+
         LongPollServer? server = null;
-        IVkBot? _vkBot = null;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                if (_vkBot == null)
-                {
-                    var scope = _serviceProvider.CreateAsyncScope();
-                    _vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
-                }
-
                 if (server == null)
                 {
-                    server = await _vkBot.GetLongPollServerAsync();
+                    server = await vkBot.GetLongPollServerAsync();
                     if (server == null)
                     {
-                        await Task.Delay(10000, stoppingToken);
+                        await Task.Delay(5000, stoppingToken);
                         continue;
                     }
                 }
-                
-                var messages = await _vkBot.GetUpdatesAsync(server);
 
-                foreach (var vkMessage in messages)
+                var response = await vkBot.GetUpdatesAsync(server);
+
+                if (response == null || response.Failed > 0)
                 {
-                    using var scope = _serviceProvider.CreateScope();
-                    var stateMachineFactory = scope.ServiceProvider.GetRequiredService<IStateMachineFactory>();
-
-                    var userMessage = new UserMessage
-                    {
-                        UserId = vkMessage.FromId,
-                        MessageId = vkMessage.Id,
-                        Text = vkMessage.Text,
-                        ReplyToMessageId = vkMessage.ReplyMessage?.Id,
-                        Payload = ConvertJsonElementToDictionary(vkMessage.Payload),
-                        Attachments = vkMessage.Attachments.Select(a => new MessageAttachment
-                        {
-                            Type = a.Type,
-                            Url = GetAttachmentUrl(a),
-                            FileName = GetAttachmentFileName(a),
-                            OwnerId = GetAttachmentOwnerId(a),
-                            MediaId = GetAttachmentMediaId(a)
-                        }).ToList()
-                    };
-
-                    _logger.LogInformation("[VkLongPoll] Получено сообщение от {UserId}: '{Text}' {Payload}", 
-                        userMessage.UserId, userMessage.Text, userMessage.Payload);
-
-                    var stateMachine = stateMachineFactory.GetOrCreate(vkMessage.FromId);
-                    
-                    var currentStateType = stateMachine.GetCurrentStateType();
-                    var currentStateDescription = stateMachine.GetCurrentStateDescription();
-                    
-                    _logger.LogInformation("[VkLongPoll] Текущее состояние: {StateType} - {Description}", 
-                        currentStateType?.Name ?? "None", currentStateDescription);
-                    
-                    var result = await stateMachine.ProcessMessage(userMessage);
-                    
-                    var newStateType = stateMachine.GetCurrentStateType();
-                    if (newStateType != currentStateType)
-                    {
-                        var newStateDescription = stateMachine.GetCurrentStateDescription();
-                        _logger.LogInformation("[VkLongPoll] Состояние изменено на: {StateType} - {Description}", 
-                            newStateType?.Name ?? "None", newStateDescription);
-                    }
-                    else
-                    {
-                        _logger.LogInformation("[VkLongPoll] Состояние осталось: {StateType}", 
-                            currentStateType?.Name ?? "None");
-                    }
-
-                    if (!string.IsNullOrEmpty(result.Text) || result.Keyboard != null || result.Attachments.Count > 0)
-                    {
-                        _logger.LogInformation("[VkLongPoll] Ответ бота: '{Text}'", result.Text);
-                        await _vkBot.SendMessageAsync(vkMessage.PeerId, result.Text, result.ReplyToMessageId, result.Keyboard, result.Attachments);
-                    }
+                    server = null;
+                    continue;
                 }
 
-                await Task.Delay(1000, stoppingToken);
+                server.Ts = response.Ts;
+
+                if (response.Updates.ValueKind == JsonValueKind.Array)
+                {
+                    var updates = response.Updates.EnumerateArray().ToArray();
+                    if (updates.Length > 0)
+                    {
+                        var tasks = updates.Select(u => HandleUpdateAsync(u, stoppingToken));
+                        await Task.WhenAll(tasks);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in Long Poll");
+                _logger.LogError(ex, "Ошибка в Long Poll");
+                server = null;
                 await Task.Delay(5000, stoppingToken);
             }
         }
     }
-    
-    private string GetAttachmentUrl(VkAttachmentItem attachment)
+
+    private async Task HandleUpdateAsync(JsonElement update, CancellationToken token)
     {
-        return attachment.Type switch
-        {
-            "photo" when attachment.Photo != null => attachment.Photo.Sizes.OrderByDescending(s => s.Width * s.Height).FirstOrDefault()?.Url ?? string.Empty,
-            "doc" when attachment.Doc != null => attachment.Doc.Url,
-            "video" when attachment.Video != null => attachment.Video.Player,
-            _ => string.Empty
-        };
-    }
-    
-    private string GetAttachmentFileName(VkAttachmentItem attachment)
-    {
-        return attachment.Type switch
-        {
-            "photo" => "photo.jpg",
-            "doc" when attachment.Doc != null => $"{attachment.Doc.Title}.{attachment.Doc.Extension}",
-            "audio" when attachment.Audio != null => $"{attachment.Audio.Artist} - {attachment.Audio.Title}",
-            "video" when attachment.Video != null => attachment.Video.Title,
-            _ => $"Вложение типа {attachment.Type}"
-        };
-    }
-    
-    private long? GetAttachmentOwnerId(VkAttachmentItem attachment)
-    {
-        return attachment.Type switch
-        {
-            "photo" when attachment.Photo != null => attachment.Photo.OwnerId,
-            "doc" when attachment.Doc != null => attachment.Doc.OwnerId,
-            "video" when attachment.Video != null => attachment.Video.OwnerId,
-            "audio" when attachment.Audio != null => attachment.Audio.OwnerId,
-            _ => null
-        };
-    }
-    
-    private long? GetAttachmentMediaId(VkAttachmentItem attachment)
-    {
-        return attachment.Type switch
-        {
-            "photo" when attachment.Photo != null => attachment.Photo.Id,
-            "doc" when attachment.Doc != null => attachment.Doc.Id,
-            "video" when attachment.Video != null => attachment.Video.Id,
-            "audio" when attachment.Audio != null => attachment.Audio.Id,
-            _ => null
-        };
-    }
-    
-    private Dictionary<string, object>? ConvertJsonElementToDictionary(JsonElement? jsonElement)
-    {
-        if (!jsonElement.HasValue || jsonElement.Value.ValueKind == JsonValueKind.Null || jsonElement.Value.ValueKind == JsonValueKind.Undefined)
-            return null;
-            
+        var userId = ExtractUserId(update);
+        if (!userId.HasValue)
+            return;
+
+        var semaphore = _userLocks.GetOrAdd(userId.Value, _ => new SemaphoreSlim(1, 1));
+
+        await semaphore.WaitAsync(token);
         try
         {
-            if (jsonElement.Value.ValueKind == JsonValueKind.String)
-            {
-                var jsonString = jsonElement.Value.GetString();
-                if (!string.IsNullOrEmpty(jsonString))
-                {
-                    var parsedElement = JsonDocument.Parse(jsonString).RootElement;
-                    return ConvertJsonElement(parsedElement) as Dictionary<string, object>;
-                }
-            }
-            return ConvertJsonElement(jsonElement.Value) as Dictionary<string, object>;
+            await using var scope = _serviceProvider.CreateAsyncScope();
+            var pipeline = scope.ServiceProvider.GetRequiredService<Pipeline>();
+
+            var context = new VkContext { Update = update };
+            await pipeline.ExecuteAsync(context);
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            _logger.LogError(ex, "Ошибка обработки апдейта для пользователя {UserId}", userId);
+        }
+        finally
+        {
+            semaphore.Release();
         }
     }
-    
-    private object? ConvertJsonElement(JsonElement element)
+
+    private long? ExtractUserId(JsonElement update)
     {
-        return element.ValueKind switch
+        try
         {
-            JsonValueKind.Object => element.EnumerateObject().ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
-            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToArray(),
-            JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => null
-        };
+            if (update.ValueKind == JsonValueKind.Array)
+            {
+                var fields = update.EnumerateArray().ToArray();
+                if (fields.Length >= 4 && fields[0].GetInt32() == 4) // событие "новое сообщение"
+                {
+                    return fields[3].GetInt64(); // userId
+                }
+            }
+        }
+        catch(Exception ex)
+        {
+            _logger.LogError("Не удалось получить userId {update} {ex}", update, ex.Message);
+        }
+        return null;
     }
 }

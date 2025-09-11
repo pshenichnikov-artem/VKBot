@@ -9,32 +9,17 @@ public class StateResult
     public List<StateAttachment> Attachments { get; set; } = new();
     public long? ReplyToMessageId { get; set; }
     public VkKeyboard? Keyboard { get; set; }
-    public bool IsSuccess { get; set; } = true;
     public StateAction Action { get; set; } = StateAction.End;
     public Type? NextStateType { get; set; }
     
-    public static StateResult Success(string? text = null, StateAction action = StateAction.End, Type? nextStateType = null, long? replyToMessageId = null, List<StateAttachment>? attachments = null, VkKeyboard? keyboard = null)
+    public StateResult(string? text = null, StateAction action = StateAction.End, Type? nextStateType = null, long? replyToMessageId = null, List<StateAttachment>? attachments = null, VkKeyboard? keyboard = null)
     {
-        return new StateResult
-        {
-            Text = text,
-            Action = action,
-            NextStateType = nextStateType,
-            ReplyToMessageId = replyToMessageId,
-            Attachments = attachments ?? new List<StateAttachment>(),
-            Keyboard = keyboard,
-            IsSuccess = true
-        };
-    }
-    
-    public static StateResult Failure(string? errorText = null)
-    {
-        return new StateResult
-        {
-            Text = errorText,
-            Action = StateAction.End,
-            IsSuccess = false
-        };
+        Text = text;
+        Action = action;
+        NextStateType = nextStateType;
+        ReplyToMessageId = replyToMessageId;
+        Attachments = attachments ?? new List<StateAttachment>();
+        Keyboard = keyboard;
     }
 }
 

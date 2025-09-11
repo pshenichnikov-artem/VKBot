@@ -27,6 +27,6 @@ public class EventContentProvider : IMessageContentProvider
         keyboard.AddRow();
         keyboard.AddButton("/event", VkButtonColor.Primary);
 
-        return StateResult.Success(text, StateAction.End, keyboard: keyboard);
+        return new StateResult(text, StateAction.End, keyboard: keyboard);
     }
 }

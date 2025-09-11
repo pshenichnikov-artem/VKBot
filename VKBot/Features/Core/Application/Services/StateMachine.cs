@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using VKBot.Features.Core.Application.Interfaces;
@@ -11,6 +12,7 @@ using VKBot.Features.Core.Data;
 using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Enums;
+using VKBot.Features.VK.Application.Middleware.Attributes;
 using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.VK.Enums;
 
@@ -22,80 +24,85 @@ public class StateMachine
     [NonSerialized]
     private IMemoryCache _memoryCache;
     [NonSerialized]
-    private IStateFactory _stateFactory;
-    [NonSerialized]
     private IServiceProvider _serviceProvider;
     [NonSerialized]
-    private ILogger<StateMachine>? _logger;
-    [NonSerialized]
-    private IStateDiscoveryService? _stateDiscoveryService;
+    private ILogger<StateMachine> _logger;
     private readonly long _userId;
     private BaseState? _currentStateInstance;
     private string _cacheKey => $"state_machine_{_userId}";
 
-    public StateMachine(long userId, IMemoryCache memoryCache, IStateFactory stateFactory, IServiceProvider serviceProvider)
+    public StateMachine(long userId, IMemoryCache memoryCache, IServiceProvider serviceProvider)
     {
         _userId = userId;
         _memoryCache = memoryCache;
-        _stateFactory = stateFactory;
         _serviceProvider = serviceProvider;
-        _logger = serviceProvider.GetService<ILogger<StateMachine>>();
-        _stateDiscoveryService = serviceProvider.GetService<IStateDiscoveryService>();
+        _logger = serviceProvider.GetRequiredService<ILogger<StateMachine>>();
     }
 
-    public static StateMachine GetOrCreate(long userId, IMemoryCache memoryCache, IStateFactory stateFactory, IServiceProvider serviceProvider)
+    public static StateMachine GetOrCreate(long userId, IMemoryCache memoryCache, IServiceProvider serviceProvider)
     {
         var cacheKey = $"state_machine_{userId}";
 
         if (memoryCache.TryGetValue(cacheKey, out StateMachine? cachedMachine))
         {
-            cachedMachine!.SetDependencies(memoryCache, stateFactory, serviceProvider);
+            cachedMachine!.SetDependencies(memoryCache, serviceProvider);
             return cachedMachine;
         }
 
-        return new StateMachine(userId, memoryCache, stateFactory, serviceProvider);
+        return new StateMachine(userId, memoryCache, serviceProvider);
     }
 
-    public void SetDependencies(IMemoryCache memoryCache, IStateFactory stateFactory, IServiceProvider serviceProvider)
+    public void SetDependencies(IMemoryCache memoryCache, IServiceProvider serviceProvider)
     {
         _memoryCache = memoryCache;
-        _stateFactory = stateFactory;
         _serviceProvider = serviceProvider;
-        _logger = serviceProvider.GetService<ILogger<StateMachine>>();
-        _stateDiscoveryService = serviceProvider.GetService<IStateDiscoveryService>();
+        _logger = serviceProvider.GetRequiredService<ILogger<StateMachine>>();
 
         _logger?.LogInformation("[StateMachine] Восстановлено из кэша: {StateType}", _currentStateInstance?.GetType().Name ?? "None");
-
-        // Обновляем ServiceProvider в текущем состоянии
-        _currentStateInstance?.SetServiceProvider(serviceProvider);
+        
+        if (_currentStateInstance != null)
+        {
+            _currentStateInstance.ReInject(_serviceProvider);
+        }
     }
 
-    public async Task<StateResult> ProcessMessage(UserMessage message)
+    public async Task<StateResult> ProcessMessage(UserMessage message, BaseState? newState = null)
     {
-
-        if (message.Text == "/cancel")
+        if (message.Text.Equals("Отмена", StringComparison.InvariantCultureIgnoreCase))
         {
             _currentStateInstance = null;
             _memoryCache.Remove(_cacheKey);
-            return StateResult.Success("Операция отменена", StateAction.End);
+            return new StateResult("Операция отменена", StateAction.End);
         }
 
-        if (message.Text == "/help" && _currentStateInstance != null)
+        if (message.Text.Equals("Помощь", StringComparison.InvariantCultureIgnoreCase) && _currentStateInstance != null)
         {
-            return StateResult.Success(_currentStateInstance.Description, StateAction.Stay);
+            var type = _currentStateInstance.GetType();
+            var description = type
+                .GetCustomAttributes<DescriptionAttribute>()
+                .Where(a => a.Step == _currentStateInstance.Step)
+                .Select(a => a.Text)
+                .SingleOrDefault() ?? "Упс... тут нет подсказки";
+
+            return new StateResult(description, StateAction.Stay);
+        }
+
+        if (newState != null)
+        {
+            return await StartState(newState.GetType(), message);
         }
 
         if (_currentStateInstance == null)
         {
-            return await HandleCommand(message);
+            _logger.LogInformation("[StateMachine] Нет текущего состояния");
+            return new StateResult("Ошибка сервера", StateAction.End);
         }
 
-        // Сначала проверяем переходы
-        var transition = _currentStateInstance.CheckTransition(message);
-        if (transition != null)
+        var commandTransition = CheckCommandTransition(message);
+        if (commandTransition != null)
         {
-            _logger?.LogInformation("[StateMachine] Переход: {CurrentState} -> {NextState}", _currentStateInstance.GetType().Name, transition.NextStateType?.Name ?? "None");
-            return await ProcessStateResult(transition, message);
+            _logger?.LogInformation("[StateMachine] Переход по команде: {CurrentState} -> {NextState}", _currentStateInstance.GetType().Name, commandTransition.GetType().Name);
+            return await StartState(commandTransition.GetType(), message);
         }
 
         // Затем обычная обработка
@@ -115,36 +122,13 @@ public class StateMachine
                 _logger?.LogInformation("[StateMachine] Завершено: {StateType}", _currentStateInstance?.GetType().Name ?? "None");
                 _currentStateInstance = null;
                 _memoryCache.Remove(_cacheKey);
-                
-                if (result.Keyboard == null && _stateDiscoveryService != null)
-                {
-                    var userRole = await GetUserRole(originalMessage.UserId);
-                    var availableStates = _stateDiscoveryService.FindStates(isEntryPoint: true, userRole: userRole).ToList();
-                    
-                    if (availableStates.Any())
-                    {
-                        var keyboard = VkKeyboard.Create(oneTime: true);
-                        var commands = availableStates.Where(s => !string.IsNullOrEmpty(s.Command)).Select(s => s.Command!).ToList();
-                        
-                        for (int i = 0; i < commands.Count; i += 2)
-                        {
-                            keyboard.AddRow();
-                            keyboard.AddButton(commands[i], VkButtonColor.Primary);
-                            if (i + 1 < commands.Count)
-                            {
-                                keyboard.AddButton(commands[i + 1], VkButtonColor.Primary);
-                            }
-                        }
-                        
-                        result = StateResult.Success(result.Text, result.Action, result.NextStateType, keyboard: keyboard, attachments: result.Attachments);
-                    }
-                }
+
                 //TODO
                     break;
             case StateAction.Next:
                 if (result.NextStateType != null)
                 {
-                    _currentStateInstance = _stateFactory.Create(result.NextStateType);
+                    _currentStateInstance = (BaseState)_serviceProvider.GetRequiredService(result.NextStateType);
                     var nextResult = await _currentStateInstance.ExecuteAsync(originalMessage);
                     SaveState();
                     return nextResult;
@@ -158,65 +142,9 @@ public class StateMachine
         return result;
     }
 
-    private async Task<StateResult> HandleCommand(UserMessage message)
-    {
-        var userRole = await GetUserRole(message.UserId);
-        var command = message.Text?.ToLower();
-        
-        if (string.IsNullOrEmpty(command) || _stateDiscoveryService == null)
-        {
-            return StateResult.Success("Неизвестная команда");
-        }
-        
-        var matchingState = _stateDiscoveryService.FindStates(isEntryPoint: true, command: command, userRole: userRole).FirstOrDefault();
-        if (matchingState != null)
-        {
-            _logger?.LogInformation("[StateMachine] Запуск команды: {StateType}", matchingState.Type.Name);
-            return await StartState(matchingState.Type, message);
-        }
-        
-        var availableStates = _stateDiscoveryService.FindStates(isEntryPoint: true, userRole: userRole).ToList();
-        
-        if (availableStates.Any())
-        {
-            var keyboard = VkKeyboard.Create(oneTime: true);
-            var commands = availableStates.Where(s => !string.IsNullOrEmpty(s.Command)).Select(s => s.Command!).ToList();
-            
-            for (int i = 0; i < commands.Count; i += 2)
-            {
-                keyboard.AddRow();
-                keyboard.AddButton(commands[i], VkButtonColor.Primary);
-                if (i + 1 < commands.Count)
-                {
-                    keyboard.AddButton(commands[i + 1], VkButtonColor.Primary);
-                }
-            }
-            
-            return StateResult.Success("❌ Неизвестная команда", StateAction.End, keyboard: keyboard);
-        }
-        
-        return StateResult.Success("Ожидайте подтверждения от администратора.");
-    }
-    
-    private async Task<UserRole> GetUserRole(long userId)
-    {
-        if (userId == 651565729 || userId == 562436407) return UserRole.Admin;
-        
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        
-        var user = await context.Users.FirstOrDefaultAsync(u => u.VkUserId == userId);
-        
-        // Если пользователь не зарегистрирован или не подтвержден
-        if (user == null || !user.IsConfirmed) return UserRole.Unregistered;
-        
-        if (user.Role == "Admin") return UserRole.Admin;
-        return UserRole.Student;
-    }
-
     private async Task<StateResult> StartState(Type stateType, UserMessage message)
     {
-        _currentStateInstance = _stateFactory.Create(stateType);
+        _currentStateInstance = (BaseState)_serviceProvider.GetRequiredService(stateType);
         var result = await _currentStateInstance.ExecuteAsync(message);
 
         return await ProcessStateResult(result, message);
@@ -227,14 +155,26 @@ public class StateMachine
         _memoryCache.Set(_cacheKey, this, TimeSpan.FromMinutes(5));
     }
 
-    public Type? GetCurrentStateType()
+    private BaseState? CheckCommandTransition(UserMessage message)
     {
-        return _currentStateInstance?.GetType();
+        if (!string.IsNullOrEmpty(message.Text))
+        {
+            return FindStateByCommand(message.Text.ToLower().Trim());
+        }
+
+        return null;
     }
 
-    public string GetCurrentStateDescription()
+    private BaseState? FindStateByCommand(string command)
     {
-        return _currentStateInstance?.Description ?? "Нет состояния";
+        var stateType = System.Reflection.Assembly.GetExecutingAssembly()
+            .GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(BaseState)) && !t.IsAbstract)
+            .FirstOrDefault(t => t.GetCustomAttribute<StateAttribute>()?.Command == command);
+        
+        return stateType != null ? (BaseState)_serviceProvider.GetRequiredService(stateType) : null;
     }
+
+
 }
 

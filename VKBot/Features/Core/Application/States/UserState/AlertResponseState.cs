@@ -6,35 +6,33 @@ using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Enums;
 using System.Text.Json;
+using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
+[State(PayloadType.AlertResponse, UserRole.Student)]
+[Description(0, "🚨 Ответ на воздушную тревогу")]
+[Description(1, "🔢 Введите количество студентов в укрытии")]
 public class AlertResponseState : BaseState
 {
+    [NonSerialized]
+    private readonly AppDbContext _context;
     private long _alertMessageId;
 
-    public AlertResponseState(IServiceProvider serviceProvider) : base(serviceProvider) { }
+    public AlertResponseState(AppDbContext context)
+    { 
+        _context = context;
+    }
 
-    public override string Description => _step switch
-    {
-        0 => "🚨 Ответ на воздушную тревогу\nКоманда для ответа на сигнал воздушной тревоги. Нажмите кнопку 'Ответить' в сообщении о тревоге и укажите количество студентов в укрытии.",
-        1 => "🔢 Введите количество студентов в укрытии\nФормат: число от 0 до 50",
-        _ => "❌ Ошибка в процессе ответа"
-    };
 
-    public override bool IsEntryPoint => true;
-    public override string? Command => "Ответить";
-    public override UserRole[] AllowedRoles => new[] { UserRole.Student };
-
-    protected override Dictionary<int, Type[]> AvailableStates => new();
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
-        return _step switch
+        return Step switch
         {
             0 => await ProcessAlertResponse(message),
             1 => await ProcessStudentCount(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => new StateResult("Ошибка", StateAction.End)
         };
     }
 
@@ -45,7 +43,7 @@ public class AlertResponseState : BaseState
             || !message.Payload.TryGetValue("type", out var type) 
             || type?.ToString() != PayloadType.AlertResponse.ToString())
         {
-            return StateResult.Success("❌ Недоступная функция", StateAction.End);
+            return new StateResult("❌ Недоступная функция", StateAction.End);
         }
 
         try
@@ -54,22 +52,19 @@ public class AlertResponseState : BaseState
         }
         catch
         {
-            return StateResult.Success("❌ Ошибка обработки кнопки", StateAction.End);
+            return new StateResult("❌ Ошибка обработки кнопки", StateAction.End);
         }
 
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var alertMsg = await context.Messages
+        var alertMsg = await _context.Messages
             .FirstOrDefaultAsync(m => m.Id == _alertMessageId && m.Payload != null && m.Payload.Contains($"\"type\": \"{PayloadType.Alert}\""));
 
         if (alertMsg == null)
         {
-            return StateResult.Success("❌ Сообщение не найдено", StateAction.End);
+            return new StateResult("❌ Сообщение не найдено", StateAction.End);
         }
 
-        _step = 1;
-        return StateResult.Success("🔢 Введите количество студентов в укрытии (от 0 до 50):", StateAction.Stay);
+        Step = 1;
+        return new StateResult("🔢 Введите количество студентов в укрытии (от 0 до 50):", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessStudentCount(UserMessage message)
@@ -77,11 +72,8 @@ public class AlertResponseState : BaseState
         var input = message.Text?.Trim();
         if (!int.TryParse(input, out var count) || count < 0 || count > 50)
         {
-            return StateResult.Success("❌ Неверный формат\n🔢 Введите число от 0 до 50:", StateAction.Stay);
+            return new StateResult("❌ Неверный формат\n🔢 Введите число от 0 до 50:", StateAction.Stay);
         }
-
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var responseMsg = new Message
         {
@@ -89,9 +81,9 @@ public class AlertResponseState : BaseState
             ReplyToMessageId = _alertMessageId,
             Payload = $"{{\"type\":\"{PayloadType.AlertResponse}\",\"count\":{count}}}"
         };
-        context.Messages.Add(responseMsg);
-        await context.SaveChangesAsync();
+        _context.Messages.Add(responseMsg);
+        await _context.SaveChangesAsync();
 
-        return StateResult.Success($"✅ Ответ сохранен: {count} студентов в укрытии", StateAction.End);
+        return new StateResult($"✅ Ответ сохранен: {count} студентов в укрытии", StateAction.End);
     }
 }

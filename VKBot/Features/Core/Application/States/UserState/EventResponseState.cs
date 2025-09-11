@@ -9,49 +9,47 @@ using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.VK.Enums;
 using VKBot.Features.VK.Application.Interfaces;
 using System.Text.Json;
+using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States.UserState;
 
+[State("события", UserRole.Student)]
+[Description(0, "📅 Просмотр событий")]
+[Description(1, "📋 Фильтрация событий")]
+[Description(2, "📄 Просмотр события")]
+[Description(3, "📝 Написание ответа")]
 public class EventResponseState : BaseState
 {
+    [NonSerialized]
+    private readonly AppDbContext _context;
+    [NonSerialized]
+    private readonly IVkBot _vkBot;
     private List<Message> _events = new();
     private int _currentEventIndex = 0;
 
-    public EventResponseState(IServiceProvider serviceProvider) : base(serviceProvider) { }
+    public EventResponseState(AppDbContext context, IVkBot vkBot)
+    { 
+        _context = context;
+        _vkBot = vkBot;
+    }
 
-    public override string Description => _step switch
-    {
-        0 => "📅 Просмотр событий\nКоманда для просмотра всех актуальных событий и ответов на них. Можно фильтровать по статусу: неотвеченные, отвеченные или все.",
-        1 => "📋 Фильтрация событий\nВыберите какие события показать: неотвеченные, отвеченные или все",
-        2 => "📄 Просмотр события\nИспользуйте кнопки для ответа или пропуска",
-        3 => "📝 Написание ответа\nОпишите ваш ответ на событие подробно",
-        _ => "❌ Ошибка в процессе ответа на событие"
-    };
 
-    public override bool IsEntryPoint => true;
-    public override string? Command => "/event";
-    public override UserRole[] AllowedRoles => new[] { UserRole.Student };
-
-    protected override Dictionary<int, Type[]> AvailableStates => new();
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
-        return _step switch
+        return Step switch
         {
             0 => await ShowEventsList(message),
             1 => await ProcessMainAction(message),
             2 => await ProcessAction(message),
             3 => await ProcessResponse(message),
-            _ => StateResult.Success("Ошибка", StateAction.End)
+            _ => new StateResult("Ошибка", StateAction.End)
         };
     }
 
     private async Task<StateResult> ShowEventsList(UserMessage message)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var allEvents = await context.Messages
+        var allEvents = await _context.Messages
             .Include(m => m.Sender)
             .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Event}\""))
             .OrderByDescending(m => m.Id)
@@ -71,7 +69,7 @@ public class EventResponseState : BaseState
 
         if (!events.Any())
         {
-            return StateResult.Success("📅 Нет актуальных событий", StateAction.End);
+            return new StateResult("📅 Нет актуальных событий", StateAction.End);
         }
 
         var eventsList = $"На данный момент актуальны {events.Count} событий";
@@ -83,8 +81,8 @@ public class EventResponseState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Все события", VkButtonColor.Secondary);
 
-        _step = 1;
-        return StateResult.Success(eventsList, StateAction.Stay, keyboard: keyboard);
+        Step = 1;
+        return new StateResult(eventsList, StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ProcessMainAction(UserMessage message)
@@ -103,15 +101,15 @@ public class EventResponseState : BaseState
                 await LoadEvents(message, "all");
                 break;
             default:
-                return StateResult.Success("❌ Используйте кнопки для выбора", StateAction.Stay);
+                return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay);
         }
         
         if (_events.Count == 0)
         {
-            return StateResult.Success("📅 Нет событий для просмотра", StateAction.End);
+            return new StateResult("📅 Нет событий для просмотра", StateAction.End);
         }
         
-        _step = 2;
+        Step = 2;
         _currentEventIndex = 0;
         return await ShowCurrentEvent(message);
     }
@@ -124,8 +122,8 @@ public class EventResponseState : BaseState
         {
             case "ответить":
             case "изменить ответ":
-                _step = 3;
-                return StateResult.Success("📝 Введите ваш ответ:", StateAction.Stay);
+                Step = 3;
+                return new StateResult("📝 Введите ваш ответ:", StateAction.Stay);
             case "пропустить":
                 break;
         }
@@ -134,7 +132,7 @@ public class EventResponseState : BaseState
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("✅ Все события просмотрены", StateAction.End);
+            return new StateResult("✅ Все события просмотрены", StateAction.End);
         }
 
         return await ShowCurrentEvent(message);
@@ -145,14 +143,11 @@ public class EventResponseState : BaseState
         var responseText = message.Text;
         if (string.IsNullOrEmpty(responseText))
         {
-            return StateResult.Success("❌ Ответ обязателен\n📝 Напишите ваш ответ:", StateAction.Stay);
+            return new StateResult("❌ Ответ обязателен\n📝 Напишите ваш ответ:", StateAction.Stay);
         }
 
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
         var currentEvent = _events[_currentEventIndex];
-        var delivery = await context.MessageDeliveries
+        var delivery = await _context.MessageDeliveries
             .FirstOrDefaultAsync(md => md.MessageId == currentEvent.Id && md.RecipientId == message.UserId);
 
         if (delivery != null)
@@ -160,7 +155,7 @@ public class EventResponseState : BaseState
             delivery.DeliveryStatus = "responded";
         }
 
-        var existingResponse = await context.Messages
+        var existingResponse = await _context.Messages
             .FirstOrDefaultAsync(m => m.ReplyToMessageId == currentEvent.Id && m.SenderId == message.UserId);
 
         if (existingResponse != null)
@@ -175,16 +170,16 @@ public class EventResponseState : BaseState
                 ReplyToMessageId = currentEvent.Id,
                 Payload = $"{{\"type\":\"{PayloadType.EventResponse}\",\"text\":\"{responseText.Replace("\"", "\\\"")}\"}}"
             };
-            context.Messages.Add(response);
+            _context.Messages.Add(response);
         }
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         _currentEventIndex++;
-        _step = 2;
+        Step = 2;
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("✅ Ответ сохранен\n📅 Все события просмотрены", StateAction.End);
+            return new StateResult("✅ Ответ сохранен\n📅 Все события просмотрены", StateAction.End);
         }
 
         return await ShowCurrentEvent(message);
@@ -192,26 +187,19 @@ public class EventResponseState : BaseState
 
     private async Task MarkAsRead(UserMessage message)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
         var currentEvent = _events[_currentEventIndex];
-        var delivery = await context.MessageDeliveries
+        var delivery = await _context.MessageDeliveries
             .FirstOrDefaultAsync(md => md.MessageId == currentEvent.Id && md.RecipientId == message.UserId);
 
         if (delivery != null)
         {
             delivery.isRead = true;
-            await context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
         }
     }
 
     private async Task<StateResult> ShowCurrentEvent(UserMessage message)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var vkBot = scope.ServiceProvider.GetRequiredService<IVkBot>();
-
         if (_events.Count == 0)
         {
             await LoadEvents(message, "unanswered");
@@ -219,7 +207,7 @@ public class EventResponseState : BaseState
 
         if (_currentEventIndex >= _events.Count)
         {
-            return StateResult.Success("Нет событий для просмотра", StateAction.End);
+            return new StateResult("Нет событий для просмотра", StateAction.End);
         }
 
         var currentEvent = _events[_currentEventIndex];
@@ -233,7 +221,7 @@ public class EventResponseState : BaseState
         }
 
         var isExpired = DateTime.UtcNow > deadline;
-        var existingResponse = context.Messages
+        var existingResponse = _context.Messages
             .FirstOrDefault(m => m.ReplyToMessageId == currentEvent.Id && m.SenderId == message.UserId);
 
         var eventInfo = $"Событие {_currentEventIndex + 1} из {_events.Count}: {title}\nОт: {currentEvent.Sender?.FullName}";
@@ -252,17 +240,14 @@ public class EventResponseState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Пропустить", VkButtonColor.Secondary);
 
-        await vkBot.ForwardMessageAsync(message.UserId, currentEvent.Id, eventInfo + statusText + responseText, keyboard);
+        await _vkBot.ForwardMessageAsync(message.UserId, currentEvent.Id, eventInfo + statusText + responseText, keyboard);
         
-        return StateResult.Success("", StateAction.Stay);
+        return new StateResult("", StateAction.Stay);
     }
 
     private async Task LoadEvents(UserMessage message, string filterType)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        
-        var allEvents = await context.Messages
+        var allEvents = await _context.Messages
             .Include(m => m.Sender)
             .Where(m => m.Payload != null && m.Payload.Contains($"\"type\":\"{PayloadType.Event}\""))
             .OrderByDescending(m => m.Id)
@@ -278,7 +263,7 @@ public class EventResponseState : BaseState
                 }
             }
             
-            var hasResponse = context.Messages
+            var hasResponse = _context.Messages
                 .Any(m => m.ReplyToMessageId == evt.Id && m.SenderId == message.UserId);
                 
             return filterType switch
