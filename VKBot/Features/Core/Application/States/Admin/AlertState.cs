@@ -12,9 +12,9 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("тревога", UserRole.Admin)]
-[Description(0, "Воздушная тревога\n" +
-    "Мгновенная отправка уведомления о воздушной тревоге всем студентам. Ответ только числом - количество студентов в укрытии. Время на ответ: 2 часа.")]
+[State("Тревога", UserRole.Admin)]
+[Description(0, "Подтверждение отправки тревоги")]
+[Description(1, "Отправка тревоги")]
 public class AlertState : BaseState
 {
     [NonSerialized]
@@ -29,7 +29,49 @@ public class AlertState : BaseState
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
-        return await SendAlert();
+        return Step switch
+        {
+            0 => await ShowConfirmation(),
+            1 => await ProcessConfirmation(message),
+            _ => new StateResult("Ошибка", StateAction.End)
+        };
+    }
+
+    private async Task<StateResult> ShowConfirmation()
+    {
+        Step = 1;
+        
+        var studentsCount = await _context.Users
+            .CountAsync(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString());
+        
+        var keyboard = VkKeyboard.Create(false, true);
+        keyboard.AddRow();
+        keyboard.AddButton("Подтвердить", VkButtonColor.Negative);
+        keyboard.AddButton("Отмена", VkButtonColor.Secondary);
+        
+        return new StateResult($"⚠️ Подтвердите отправку тревоги\n\n👥 Получателей: {studentsCount} студентов\n⏰ Время на ответ: 2 часа", StateAction.Stay, keyboard: keyboard);
+    }
+
+    private async Task<StateResult> ProcessConfirmation(UserMessage message)
+    {
+        var input = message.Text?.Trim();
+        
+        if (input == "Подтвердить")
+        {
+            return await SendAlert();
+        }
+        
+        if (input == "Отмена")
+        {
+            return new StateResult("❌ Отправка тревоги отменена", StateAction.End);
+        }
+        
+        var keyboard = VkKeyboard.Create(false, true);
+        keyboard.AddRow();
+        keyboard.AddButton("Подтвердить", VkButtonColor.Negative);
+        keyboard.AddButton("Отмена", VkButtonColor.Secondary);
+        
+        return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> SendAlert()

@@ -13,6 +13,8 @@ namespace VKBot.Features.Core.Domain.Entities
         public string Cohort { get; set; } = string.Empty;
         [Required]
         public short GroupNumber { get; set; }
+        [Required]
+        public string StudyForm { get; set; } = string.Empty;
         
         [ForeignKey("Faculty")]
         public int FacultyId { get; set; }

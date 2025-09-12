@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using VKBot.Features.Core.Data;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Domain.Entities;
@@ -22,16 +23,21 @@ public class ExcelState : BaseState
     private readonly IVkBot _vkBot;
     [NonSerialized]
     private readonly IReadOnlyCollection<IExcelReportProvider> _excelProvider;
+    [NonSerialized]
+    private readonly ILogger<ExcelState> _logger;
 
-    public ExcelState(AppDbContext context, IVkBot vkBot, ICollection<IExcelReportProvider> excelProvider)
+    public ExcelState(AppDbContext context, IVkBot vkBot, IEnumerable<IExcelReportProvider> excelProvider, ILogger<ExcelState> logger)
     { 
         _context = context;
         _vkBot = vkBot;
-        _excelProvider = (IReadOnlyCollection<IExcelReportProvider>)excelProvider;
+        _excelProvider = excelProvider.ToList();
+        _logger = logger;
     }
 
     public override async Task<StateResult> ExecuteAsync(UserMessage message)
     {
+        _logger.LogInformation("ExcelState Payload: {Payload}", string.Join(", ", message.Payload?.Select(kvp => $"{kvp.Key}={kvp.Value}") ?? new string[0]));
+        
         if (message.Payload == null || !message.Payload.TryGetValue("messageId", out var messageIdElement))
         {
             return new StateResult("Недоступная функция", StateAction.End);
@@ -40,7 +46,7 @@ public class ExcelState : BaseState
         long eventMessageId;
         try
         {
-            eventMessageId = Convert.ToInt64(messageIdElement);
+            eventMessageId = Convert.ToInt64(messageIdElement.ToString());
         }
         catch
         {

@@ -12,7 +12,7 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("удалить")]
+[State("Удалить")]
 [Description(0, "🗑️ Удаление студента")]
 [Description(1, "🔍 Поиск студента")]
 [Description(2, "⚠️ Подтверждение удаления")]

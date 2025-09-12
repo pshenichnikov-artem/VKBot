@@ -12,7 +12,7 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("рассылка", UserRole.Admin)]
+[State("Рассылка", UserRole.Admin)]
 [Description(0, "📢 Создание нового события\nКоманда для создания и отправки событий студентам. Можно отправлять всем, конкретным потокам или группам. Устанавливается время для ответов.")]
 [Description(1, "👥 Выбор получателей\nИспользуйте кнопки для выбора аудитории")]
 [Description(2, "🎓 Укажите группу(Например ИТ/б-22-1-о) или поток(Например ИТ/б-22-о)")]
@@ -38,7 +38,7 @@ public class EventState : BaseState
         return Step switch
         {
             0 => ShowRecipientSelection(),
-            1 => ProcessRecipientSelection(message),
+            1 => await ProcessRecipientSelection(message),
             2 => await ProcessGroupSelection(message),
             3 => ProcessTitleStep(message),
             4 => ProcessEventTextStep(message),
@@ -56,10 +56,13 @@ public class EventState : BaseState
         keyboard.AddRow();
         keyboard.AddButton("Потокам", VkButtonColor.Secondary);
         keyboard.AddButton("Группам", VkButtonColor.Secondary);
+        keyboard.AddRow();
+        keyboard.AddButton("По факультетам", VkButtonColor.Secondary);
+        keyboard.AddButton("По форме обучения", VkButtonColor.Secondary);
         return new StateResult("📢 Выберите получателей события:", StateAction.Stay, keyboard: keyboard);
     }
 
-    private StateResult ProcessRecipientSelection(UserMessage message)
+    private async Task<StateResult> ProcessRecipientSelection(UserMessage message)
     {
         var selection = message.Text?.ToLower().Trim();
         switch (selection)
@@ -76,6 +79,14 @@ public class EventState : BaseState
                 _targetType = "groups";
                 Step = 2;
                 return new StateResult("👥 Введите группы\nФормат: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
+            case "по факультетам":
+                _targetType = "faculty";
+                Step = 2;
+                return await ShowFacultySelection();
+            case "по форме обучения":
+                _targetType = "studyform";
+                Step = 2;
+                return ShowStudyFormSelection();
             default:
                 return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay);
         }
@@ -96,10 +107,23 @@ public class EventState : BaseState
             var matches = Regex.Matches(input, cohortPattern);
             _targetGroups = matches.Select(m => m.Value).ToList();
         }
+        else if (_targetType == "faculty")
+        {
+            _targetGroups = input.Split(',').Select(f => f.Trim()).Where(f => !string.IsNullOrEmpty(f)).ToList();
+        }
+        else if (_targetType == "studyform")
+        {
+            var form = input.Trim();
+            if (!form.Equals("Очная", StringComparison.OrdinalIgnoreCase) && !form.Equals("Заочная", StringComparison.OrdinalIgnoreCase))
+            {
+                return ShowStudyFormSelection();
+            }
+            _targetGroups = new List<string> { form.Equals("Очная", StringComparison.OrdinalIgnoreCase) ? "Очная" : "Заочная" };
+        }
 
         if (!_targetGroups.Any())
         {
-            return new StateResult("❌ Неверный формат\n📝 Пример: ИТ/б-22-1-о, ИВТ/б-21-2-о", StateAction.Stay);
+            return new StateResult("❌ Неверный формат", StateAction.Stay);
         }
 
         Step = 3;
@@ -177,7 +201,39 @@ public class EventState : BaseState
                 .Where(u => u.IsConfirmed && !u.IsBlocked && u.Group != null && 
                            _targetGroups.Any(cohort => u.Group.Name.StartsWith(cohort)) && u.Role == UserRole.Student.ToString())
                 .ToListAsync(),
+            "faculty" => await _context.Users.Include(u => u.Group).ThenInclude(g => g.Faculty)
+                .Where(u => u.IsConfirmed && !u.IsBlocked && u.Group != null && u.Group.Faculty != null &&
+                           _targetGroups.Contains(u.Group.Faculty.Name) && u.Role == UserRole.Student.ToString())
+                .ToListAsync(),
+            "studyform" => await _context.Users.Include(u => u.Group)
+                .Where(u => u.IsConfirmed && !u.IsBlocked && u.Group != null &&
+                           _targetGroups.Contains(u.Group.StudyForm) && u.Role == UserRole.Student.ToString())
+                .ToListAsync(),
             _ => new List<User>()
         };
+    }
+    
+    private async Task<StateResult> ShowFacultySelection()
+    {
+        var faculties = await _context.Faculties.OrderBy(f => f.Name).ToListAsync();
+        
+        var facultiesList = "🏢 Доступные факультеты:\n";
+        foreach (var faculty in faculties)
+        {
+            facultiesList += $"• {faculty.Name}\n";
+        }
+        facultiesList += "\nВведите названия через запятую:";
+        
+        return new StateResult(facultiesList, StateAction.Stay);
+    }
+    
+    private StateResult ShowStudyFormSelection()
+    {
+        var keyboard = VkKeyboard.Create(false, true);
+        keyboard.AddRow();
+        keyboard.AddButton("Очная", VkButtonColor.Primary);
+        keyboard.AddButton("Заочная", VkButtonColor.Secondary);
+        
+        return new StateResult("🎓 Выберите форму обучения:", StateAction.Stay, keyboard: keyboard);
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using VKBot.Features.Core.Data;
 using VKBot.Features.Core.Domain.Entities;
 using VKBot.Features.Core.Enums;
@@ -32,8 +33,8 @@ public class AdminSyncService : BackgroundService
         {
             try
             {
-                await Task.Delay(TimeSpan.FromHours(24 - DateTime.UtcNow.AddHours(3).Hour), stoppingToken); // Раз в сутки
                 await SyncAdmins();
+                await Task.Delay(TimeSpan.FromHours(24 - DateTime.UtcNow.AddHours(3).Hour), stoppingToken); // Раз в сутки 
             }
             catch (Exception ex)
             {
@@ -51,6 +52,7 @@ public class AdminSyncService : BackgroundService
             
             var url = $"https://api.vk.com/method/groups.getMembers?group_id={groupId}&filter=managers&access_token={accessToken}&v=5.131";
             var response = await _httpClient.GetStringAsync(url);
+            _logger.LogInformation(response);
             var apiResponse = JsonSerializer.Deserialize<VkAdminsResponse>(response);
             
             if (apiResponse?.Response?.Items == null)
@@ -80,36 +82,49 @@ public class AdminSyncService : BackgroundService
             
             // Добавляем новых админов
             var existingAdminIds = dbAdmins.Select(a => a.VkUserId).ToHashSet();
-            var newAdminIds = vkAdminIds.Except(existingAdminIds);
+            var newAdminIds = vkAdminIds.Except(existingAdminIds).ToList();
             
-            foreach (var adminId in newAdminIds)
+            if (newAdminIds.Any())
             {
-                var existingUser = await context.Users
-                    .IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(u => u.VkUserId == adminId);
+                // Получаем имена админов из VK
+                var userIds = string.Join(",", newAdminIds);
+                var usersUrl = $"https://api.vk.com/method/users.get?user_ids={userIds}&access_token={accessToken}&v=5.131";
+                var usersResponse = await _httpClient.GetStringAsync(usersUrl);
+                var usersData = JsonSerializer.Deserialize<VkUsersResponse>(usersResponse);
                 
-                if (existingUser != null)
+                foreach (var adminId in newAdminIds)
                 {
-                    existingUser.Role = UserRole.Admin.ToString();
-                    existingUser.IsConfirmed = true;
-                    existingUser.IsBlocked = false;
-                    existingUser.IsDeleted = false;
-                }
-                else
-                {
-                    var newAdmin = new User
+                    var vkUser = usersData?.Response?.FirstOrDefault(u => u.Id == adminId);
+                    var fullName = vkUser != null ? $"{vkUser.FirstName} {vkUser.LastName}" : "Администратор";
+                    
+                    var existingUser = await context.Users
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(u => u.VkUserId == adminId);
+                    
+                    if (existingUser != null)
                     {
-                        VkUserId = adminId,
-                        FullName = "Администратор",
-                        Role = UserRole.Admin.ToString(),
-                        IsConfirmed = true,
-                        IsBlocked = false,
-                        IsDeleted = false
-                    };
-                    context.Users.Add(newAdmin);
+                        existingUser.FullName = fullName;
+                        existingUser.Role = UserRole.Admin.ToString();
+                        existingUser.IsConfirmed = true;
+                        existingUser.IsBlocked = false;
+                        existingUser.IsDeleted = false;
+                    }
+                    else
+                    {
+                        var newAdmin = new User
+                        {
+                            VkUserId = adminId,
+                            FullName = fullName,
+                            Role = UserRole.Admin.ToString(),
+                            IsConfirmed = true,
+                            IsBlocked = false,
+                            IsDeleted = false
+                        };
+                        context.Users.Add(newAdmin);
+                    }
+                    
+                    _logger.LogInformation("Добавлен админ: {UserId} - {FullName}", adminId, fullName);
                 }
-                
-                _logger.LogInformation("Добавлен админ: {UserId}", adminId);
             }
             
             await context.SaveChangesAsync();
@@ -124,15 +139,36 @@ public class AdminSyncService : BackgroundService
 
 public class VkAdminsResponse
 {
+    [JsonPropertyName("response")]
     public VkAdminsData Response { get; set; } = null!;
 }
 
 public class VkAdminsData
 {
+    [JsonPropertyName("items")]
     public List<VkAdmin> Items { get; set; } = new();
 }
 
 public class VkAdmin
 {
+    [JsonPropertyName("id")]
     public long Id { get; set; }
+}
+
+public class VkUsersResponse
+{
+    [JsonPropertyName("response")]
+    public List<VkUser> Response { get; set; } = new();
+}
+
+public class VkUser
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+    
+    [JsonPropertyName("first_name")]
+    public string FirstName { get; set; } = string.Empty;
+    
+    [JsonPropertyName("last_name")]
+    public string LastName { get; set; } = string.Empty;
 }

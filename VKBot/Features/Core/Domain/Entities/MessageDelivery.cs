@@ -1,24 +1,13 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using VKBot.Features.Core.Domain.Enums;
 
 namespace VKBot.Features.Core.Domain.Entities
 {
     public class MessageDelivery
-
-        //Лолита
-        //Ивент 101
-
-
-        //Иван
-        //Пришел ивент 102
-        //Ответ ивана 103
-        //Неотвеченные сообщения /events
-        // Список ивенто
-        //Продолжить Ответить
-        //Пришел ивент 105
     {
         [Key]
         public long Id { get; set; }
-        public long? MessageId { get; set; } // Сначала такой же, как и ParentMessageId, затем обновляется
+        public long? MessageId { get; set; }
         public Message? Message { get; set; } = null;
 
         public long RecipientId { get; set; }
@@ -30,7 +19,7 @@ namespace VKBot.Features.Core.Domain.Entities
         public DateTime? NextRetryAt { get; set; }
         public DateTime? LastReminderAt { get; set; }
         [Required]
-        public string DeliveryStatus { get; set; } = "pending";
+        public string DeliveryStatus { get; set; } = MessageStatus.Pending.ToString().ToLower();
         public bool isRead { get; set; }
     }
 }

@@ -11,10 +11,11 @@ using Microsoft.Extensions.DependencyInjection;
 using VKBot.Features.VK.Application.Middleware.Attributes;
 using VKBot.Features.VK.Enums;
 using VKBot.Features.VK.Domain.Models;
+using VKBot.Features.VK.Application.Utils;
 
 namespace VKBot.Features.Core.Application.States.UserState;
 
-[State("начать", UserRole.Unregistered)]
+[State("Начать", UserRole.Unregistered)]
 [Description(0, "🎓 Регистрация в системе")]
 [Description(1, "🏛️ Выбор факультета")]
 [Description(2, "👥 Выбор группы")]
@@ -28,7 +29,6 @@ public class RegistrationState : BaseState
     private int _facultyId;
     private long _groupId;
     private int _groupPage = 0;
-    private const int GroupsPerPage = 8;
 
     public RegistrationState(AppDbContext context, UserNotificationService notificationService)
     { 
@@ -111,8 +111,6 @@ public class RegistrationState : BaseState
         var groups = await _context.Groups
             .Where(g => g.FacultyId == _facultyId)
             .OrderBy(g => g.Name)
-            .Skip(_groupPage * GroupsPerPage)
-            .Take(GroupsPerPage + 1)
             .ToListAsync();
             
         if (!groups.Any())
@@ -120,43 +118,23 @@ public class RegistrationState : BaseState
             return new StateResult("❌ В выбранном факультете нет групп\nОбратитесь к администрации", StateAction.End);
         }
         
-        var hasMore = groups.Count > GroupsPerPage;
-        var displayGroups = hasMore ? groups.Take(GroupsPerPage).ToList() : groups;
+        var keyboard = KeyboardPagination.CreatePaginatedKeyboard(
+            groups, 
+            _groupPage, 
+            g => g.Name, 
+            VkButtonColor.Primary);
         
-        var text = $"👥 Выберите вашу группу (стр. {_groupPage + 1}):";
-        
-        var keyboard = VkKeyboard.Create(false, true);
-        for (int i = 0; i < displayGroups.Count; i++)
-        {
-            if (i % 2 == 0) keyboard.AddRow();
-            keyboard.AddButton(displayGroups[i].Name, VkButtonColor.Primary);
-        }
-        
-        if (_groupPage > 0 || hasMore)
-        {
-            keyboard.AddRow();
-            if (_groupPage > 0)
-                keyboard.AddButton("◀️ Назад", VkButtonColor.Secondary);
-            if (hasMore)
-                keyboard.AddButton("Далее ▶️", VkButtonColor.Secondary);
-        }
-        
-        return new StateResult(text, StateAction.Stay, keyboard: keyboard);
+        return new StateResult("👥 Выберите вашу группу:", StateAction.Stay, keyboard: keyboard);
     }
     
     private async Task<StateResult> ProcessGroup(UserMessage message)
     {
         var input = message.Text?.Trim();
         
-        if (input == "◀️ Назад")
+        if (KeyboardPagination.IsNavigationCommand(input, out var direction))
         {
-            _groupPage--;
-            return await ShowGroups();
-        }
-        
-        if (input == "Далее ▶️")
-        {
-            _groupPage++;
+            var totalCount = await _context.Groups.CountAsync(g => g.FacultyId == _facultyId);
+            _groupPage = KeyboardPagination.GetValidPage(_groupPage, direction, totalCount);
             return await ShowGroups();
         }
         

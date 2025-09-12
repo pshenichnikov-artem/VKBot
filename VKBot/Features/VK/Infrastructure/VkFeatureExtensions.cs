@@ -5,6 +5,7 @@ using VKBot.Features.VK.Application.Interfaces;
 using VKBot.Features.VK.Application.Services;
 using VKBot.Features.VK.Application.Middleware;
 using VKBot.Features.Host.BackgroundServices;
+using Microsoft.Extensions.Logging;
 
 namespace VKBot.Features.VK.Infrastructure;
 
@@ -24,9 +25,11 @@ public static class VkFeatureExtensions
             
         services.AddScoped<Pipeline>(provider =>
         {
-            var pipeline = new Pipeline();
+            var logger = provider.GetRequiredService<ILogger<Pipeline>>();
+            var pipeline = new Pipeline(logger);
             
             // Порядок middleware
+            pipeline.Use(provider.GetRequiredService<SendMessageMiddleware>());
             pipeline.Use(provider.GetRequiredService<ExceptionMiddleware>());
             //pipeline.Use(provider.GetRequiredService<AntiSpamMiddleware>());
             pipeline.Use(provider.GetRequiredService<ParseMessageMiddleware>());

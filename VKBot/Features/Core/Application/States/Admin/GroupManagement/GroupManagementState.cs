@@ -12,7 +12,7 @@ using Group = VKBot.Features.Core.Domain.Entities.Group;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("группы управление")]
+[State("Группы управление")]
 [Description(0, "👥 Управление группами")]
 [Description(1, "📋 Выбор действия")]
 [Description(2, "🏛️ Выбор факультета")]
@@ -97,7 +97,17 @@ public class GroupManagementState : BaseState
             return await ShowFacultySelection();
         }
         
-        return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay);
+        var keyboard = VkKeyboard.Create(false, true);
+        keyboard.AddRow();
+        keyboard.AddButton("Добавить группу", VkButtonColor.Positive);
+        
+        var hasGroups = await _context.Faculties.AnyAsync(f => f.Groups.Any());
+        if (hasGroups)
+        {
+            keyboard.AddButton("Удалить группу", VkButtonColor.Negative);
+        }
+        
+        return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ShowFacultySelection()
@@ -177,12 +187,14 @@ public class GroupManagementState : BaseState
         }
         
         var (cohort, groupNumber) = ParseGroupName(groupName);
+        var studyForm = ParseStudyForm(groupName);
         
         var group = new Group 
         { 
             Name = groupName,
             Cohort = cohort,
             GroupNumber = groupNumber,
+            StudyForm = studyForm,
             FacultyId = _facultyId
         };
         _context.Groups.Add(group);
@@ -218,5 +230,16 @@ public class GroupManagementState : BaseState
         var groupNumber = short.Parse(parts[^2]);
         
         return (cohort, groupNumber);
+    }
+    
+    private string ParseStudyForm(string groupName)
+    {
+        var lastChar = groupName.LastOrDefault();
+        return lastChar switch
+        {
+            'о' => "Очная",
+            'з' => "Заочная",
+            _ => "Неизвестно"
+        };
     }
 }

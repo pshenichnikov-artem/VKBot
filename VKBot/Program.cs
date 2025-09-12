@@ -11,7 +11,8 @@ using VKBot.Features.Host.Services;
 using VKBot.Features.VK.Infrastructure;
 
 Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext:l}] {Message:lj}{NewLine}{Exception}")
+    .MinimumLevel.Override("System.Net.Http.HttpClient", Serilog.Events.LogEventLevel.Warning)
     .CreateLogger();
 
 var logger = Log.ForContext<Program>();
@@ -45,10 +46,8 @@ try
         context.Database.Migrate();
         logger.Information("Миграции БД завершены");
         
-        logger.Information("Синхронизация админов");
         var adminSync = scope.ServiceProvider.GetRequiredService<AdminSyncService>();
         await adminSync.StartAsync(CancellationToken.None);
-        logger.Information("Синхронизация админов завершена");
     }
 
     logger.Information("Запуск VK LongPoll сервиса");

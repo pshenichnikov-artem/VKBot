@@ -11,7 +11,7 @@ public class AlertExcelProvider : IExcelReportProvider
 {
     public string GetMessageType() => PayloadType.Alert.ToString();
     public string GetFileName() => $"alert_report_{DateTime.UtcNow.AddHours(3):yyyy_MM_dd_HH_mm}.xlsx";
-    public string GetReportTitle() => "Отчет по тревоге";
+    public string GetReportTitle() => $"Отчет по тревоге";
 
     public async Task<byte[]> GenerateReport(Message message, List<MessageDelivery> deliveries, List<Message> responses)
     {
@@ -19,7 +19,7 @@ public class AlertExcelProvider : IExcelReportProvider
         using var package = new ExcelPackage();
         var worksheet = package.Workbook.Worksheets.Add("Отчет по тревоге");
 
-        worksheet.Cells[1, 1].Value = "Отчет по воздушной тревоге";
+        worksheet.Cells[1, 1].Value = $"Отчет по воздушной тревоге от {DateTime.UtcNow.AddHours(3):dd.MM.yyyy HH:mm} МСК";
         worksheet.Cells[1, 1, 1, 4].Merge = true;
         worksheet.Cells[1, 1].Style.Font.Bold = true;
         worksheet.Cells[1, 1].Style.Font.Size = 14;

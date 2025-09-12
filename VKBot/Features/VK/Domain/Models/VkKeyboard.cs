@@ -13,6 +13,12 @@ public class VkKeyboard
     [JsonPropertyName("inline")]
     public bool Inline {  get; set; } = false;
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="oneTime"></param>
+    /// <param name="inline"></param>
+    /// <returns></returns>
     public static VkKeyboard Create(bool oneTime = false, bool inline = false)
     {
         return new VkKeyboard

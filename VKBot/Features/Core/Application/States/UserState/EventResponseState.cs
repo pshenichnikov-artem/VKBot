@@ -13,7 +13,7 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States.UserState;
 
-[State("события", UserRole.Student)]
+[State("События", UserRole.Student)]
 [Description(0, "📅 Просмотр событий")]
 [Description(1, "📋 Фильтрация событий")]
 [Description(2, "📄 Просмотр события")]

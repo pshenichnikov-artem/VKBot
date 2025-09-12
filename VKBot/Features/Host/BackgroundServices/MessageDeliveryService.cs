@@ -64,7 +64,7 @@ public class MessageDeliveryService : BackgroundService
             try
             {
                 var result = await _contentService.GenerateMessageContent(delivery.Message);
-                var messageId = await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
+                long? messageId = 1; //await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
 
                 if (messageId.HasValue)
                 {
@@ -113,7 +113,7 @@ public class MessageDeliveryService : BackgroundService
             try
             {
                 var result = await _contentService.GenerateMessageContent(delivery.Message);
-                var messageId = await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
+                long? messageId = 1; //await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
 
                 if (messageId.HasValue)
                 {

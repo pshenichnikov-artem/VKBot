@@ -68,14 +68,14 @@ public class StateMachine
 
     public async Task<StateResult> ProcessMessage(UserMessage message, BaseState? newState = null)
     {
-        if (message.Text.Equals("Отмена", StringComparison.InvariantCultureIgnoreCase))
+        if (message.Text.Equals("Отмена", StringComparison.OrdinalIgnoreCase))
         {
             _currentStateInstance = null;
             _memoryCache.Remove(_cacheKey);
             return new StateResult("Операция отменена", StateAction.End);
         }
 
-        if (message.Text.Equals("Помощь", StringComparison.InvariantCultureIgnoreCase) && _currentStateInstance != null)
+        if (message.Text.Equals("Помощь", StringComparison.OrdinalIgnoreCase) && _currentStateInstance != null)
         {
             var type = _currentStateInstance.GetType();
             var description = type
@@ -95,7 +95,7 @@ public class StateMachine
         if (_currentStateInstance == null)
         {
             _logger.LogInformation("[StateMachine] Нет текущего состояния");
-            return new StateResult("Ошибка сервера", StateAction.End);
+            return new StateResult("Ошибка сервера НЕТ ТЕКУЩЕГО СОСТОЯНИЯ", StateAction.End);
         }
 
         var commandTransition = CheckCommandTransition(message);
@@ -167,12 +167,23 @@ public class StateMachine
 
     private BaseState? FindStateByCommand(string command)
     {
-        var stateType = System.Reflection.Assembly.GetExecutingAssembly()
-            .GetTypes()
-            .Where(t => t.IsSubclassOf(typeof(BaseState)) && !t.IsAbstract)
-            .FirstOrDefault(t => t.GetCustomAttribute<StateAttribute>()?.Command == command);
+        if (_currentStateInstance == null) return null;
         
-        return stateType != null ? (BaseState)_serviceProvider.GetRequiredService(stateType) : null;
+        var transitions = _currentStateInstance.GetType().GetCustomAttributes<TransitionAttribute>();
+        
+        foreach (var transition in transitions)
+        {
+            foreach (var stateType in transition.AvailableStates)
+            {
+                var stateCommand = stateType.GetCustomAttribute<StateAttribute>()?.Command;
+                if (command.Equals(stateCommand, StringComparison.OrdinalIgnoreCase))
+                {
+                    return (BaseState)_serviceProvider.GetRequiredService(stateType);
+                }
+            }
+        }
+        
+        return null;
     }
 
 

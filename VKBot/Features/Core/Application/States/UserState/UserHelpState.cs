@@ -6,7 +6,7 @@ using System.Reflection;
 
 namespace VKBot.Features.Core.Application.States.UserState;
 
-[State("помощь", UserRole.Student)]
+[State("Помощь", UserRole.Student)]
 [Description(0, "📚 Справка по командам")]
 public class UserHelpState : BaseState
 {

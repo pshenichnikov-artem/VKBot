@@ -10,8 +10,8 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("факультеты")]
-[Description(0, "🏛️ Управление факультетами")]
+[State("Факультеты")]
+[Description(0, "🏛️ Управление факультетами 1")]
 [Description(1, "📋 Выбор действия")]
 [Description(2, "📝 Ввод названия факультета")]
 public class FacultyState : BaseState
@@ -83,7 +83,17 @@ public class FacultyState : BaseState
             return new StateResult("📝 Введите название факультета для удаления:", StateAction.Stay);
         }
         
-        return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay);
+        var keyboard = VkKeyboard.Create(false, true);
+        keyboard.AddRow();
+        keyboard.AddButton("Добавить", VkButtonColor.Positive);
+        
+        var hasFaculties = _context.Faculties.Any();
+        if (hasFaculties)
+        {
+            keyboard.AddButton("Удалить", VkButtonColor.Negative);
+        }
+        
+        return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ProcessFacultyName(UserMessage message)

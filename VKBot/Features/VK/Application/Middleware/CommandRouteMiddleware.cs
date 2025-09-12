@@ -7,6 +7,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using VKBot.Features.Core.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using VKBot.Features.VK.Application.Exceptions;
 
 namespace VKBot.Features.VK.Application.Middleware;
 
@@ -15,7 +17,7 @@ public class CommandRouteMiddleware : MiddlewareBase
     private readonly IServiceProvider _serviceProvider;
     private readonly IMemoryCache _memoryCache;
 
-    public CommandRouteMiddleware(IServiceProvider serviceProvider, IMemoryCache memoryCache)
+    public CommandRouteMiddleware(IServiceProvider serviceProvider, IMemoryCache memoryCache, ILogger<CommandRouteMiddleware> logger) : base(logger)
     {
         _serviceProvider = serviceProvider;
         _memoryCache = memoryCache;
@@ -23,6 +25,7 @@ public class CommandRouteMiddleware : MiddlewareBase
 
     public override async Task InvokeAsync(VkContext context, Func<Task> next)
     {
+        
         var cacheKey = $"state_machine_{context.Message?.FromId}";
         var hasActiveState = _memoryCache.TryGetValue(cacheKey, out _);
 
@@ -48,7 +51,16 @@ public class CommandRouteMiddleware : MiddlewareBase
         }
 
         context.FoundState = foundState;
+        
 
+        
+        if (foundState == null)
+        {
+            _logger.LogInformation("Команда не найдена: {Text}", context.Message?.Text);
+            throw new CommandNotFoundException();
+        }
+
+        _logger.LogInformation("Найдена команда: {Command}", foundState.GetType().Name);
         await next();
     }
 
@@ -67,7 +79,7 @@ public class CommandRouteMiddleware : MiddlewareBase
         var stateType = Assembly.GetExecutingAssembly()
             .GetTypes()
             .Where(t => t.IsSubclassOf(typeof(BaseState)) && !t.IsAbstract)
-            .FirstOrDefault(t => t.GetCustomAttribute<StateAttribute>()?.Command == command
+            .FirstOrDefault(t => string.Equals(t.GetCustomAttribute<StateAttribute>()?.Command, command, StringComparison.OrdinalIgnoreCase)
             && t.GetCustomAttribute<StateAttribute>()?.IsEntryState == true);
         
         return stateType != null ? (BaseState)_serviceProvider.GetRequiredService(stateType) : null;

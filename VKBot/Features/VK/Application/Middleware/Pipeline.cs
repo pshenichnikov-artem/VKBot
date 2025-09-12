@@ -1,10 +1,17 @@
 using VKBot.Features.VK.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace VKBot.Features.VK.Application.Middleware;
 
 public class Pipeline
 {
     private readonly List<(MiddlewareBase middleware, Func<VkContext, bool>? condition)> _middlewares = new();
+    private readonly ILogger<Pipeline> _logger;
+
+    public Pipeline(ILogger<Pipeline> logger)
+    {
+        _logger = logger;
+    }
 
     public void Use(MiddlewareBase middleware, Func<VkContext, bool>? condition = null)
     {
@@ -27,14 +34,7 @@ public class Pipeline
 
         var current = middlewares[index];
         await current.InvokeAsync(context, () => ExecuteChain(context, middlewares, index + 1));
-        await ExecuteCallbackChain(context, middlewares, middlewares.Count - 1 - index);
     }
 
-    private async Task ExecuteCallbackChain(VkContext context, List<MiddlewareBase> middlewares, int index)
-    {
-        if (index < 0) return;
 
-        var current = middlewares[index];
-        await current.OnCallbackAsync(context, () => ExecuteCallbackChain(context, middlewares, index - 1));
-    }
 }

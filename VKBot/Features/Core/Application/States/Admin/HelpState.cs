@@ -6,7 +6,7 @@ using System.Reflection;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("помощь", UserRole.Admin)]
+[State("Помощь", UserRole.Admin)]
 [Description(0, "📚 Справка по командам")]
 public class HelpState : BaseState
 {
@@ -22,8 +22,9 @@ public class HelpState : BaseState
 
         foreach (var state in stateTypes)
         {
-            var descAttr = state.Type.GetCustomAttribute<DescriptionAttribute>();
-            var description = descAttr?.Text ?? "Описание отсутствует";
+            var descAttrs = state.Type.GetCustomAttributes<DescriptionAttribute>();
+            var firstDesc = descAttrs.FirstOrDefault(d => d.Step == 0);
+            var description = firstDesc?.Text ?? "Описание отсутствует";
             help += $"{state.StateAttr!.Command} -- {description}\n";
         }
 

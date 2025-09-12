@@ -11,7 +11,7 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("студенты", UserRole.Admin)]
+[State("Студенты", UserRole.Admin)]
 [Transition(1, typeof(EditStudentState), typeof(DeleteStudentState))]
 [Description(0, "👥 Управление списком студентов")]
 [Description(1, "📋 Выбор действия")]
@@ -64,8 +64,8 @@ public class StudentsState : BaseState
         
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Изменить", VkButtonColor.Primary);
-        keyboard.AddButton("Удалить", VkButtonColor.Negative);
+        keyboard.AddButton(GetCommand<EditStudentState>(), VkButtonColor.Primary);
+        keyboard.AddButton(GetCommand<DeleteStudentState>(), VkButtonColor.Negative);
         
         return new StateResult(studentsList, StateAction.Stay, keyboard: keyboard);
     }
@@ -74,8 +74,8 @@ public class StudentsState : BaseState
     {
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
-        keyboard.AddButton("Изменить", VkButtonColor.Primary);
-        keyboard.AddButton("Удалить", VkButtonColor.Negative);
+        keyboard.AddButton(GetCommand<EditStudentState>(), VkButtonColor.Primary);
+        keyboard.AddButton(GetCommand<DeleteStudentState>(), VkButtonColor.Negative);
         
         return new StateResult("❌ Используйте кнопки для выбора действия", StateAction.Stay, keyboard: keyboard);
     }

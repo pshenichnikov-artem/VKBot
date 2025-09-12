@@ -1,4 +1,3 @@
-
 using Microsoft.EntityFrameworkCore;
 using VKBot.Features.Core.Data;
 using VKBot.Features.Core.Domain.Models;
@@ -14,7 +13,7 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("группы", UserRole.Admin)]
+[State("Группы", UserRole.Admin)]
 [Transition(1, typeof(GroupManagementState), typeof(FacultyState))]
 [Description(0, "🏛️ Управление группами и факультетами")]
 [Description(1, "📋 Выбор раздела управления")]
@@ -62,10 +61,12 @@ public class GroupState : BaseState
         }
         
         var keyboard = VkKeyboard.Create(false, true);
+        
         keyboard.AddRow();
-        keyboard.AddButton("Управление группами", VkButtonColor.Primary);
+        keyboard.AddButton(GetCommand<GroupManagementState>(), VkButtonColor.Primary);
+        
         keyboard.AddRow();
-        keyboard.AddButton("Управление факультетами", VkButtonColor.Secondary);
+        keyboard.AddButton(GetCommand<FacultyState>(), VkButtonColor.Secondary);
         
         return new StateResult(summary, StateAction.Stay, keyboard: keyboard);
     }
@@ -73,10 +74,12 @@ public class GroupState : BaseState
     private StateResult ProcessMenuSelection(UserMessage message)
     {
         var keyboard = VkKeyboard.Create(false, true);
+        
         keyboard.AddRow();
-        keyboard.AddButton("Управление группами", VkButtonColor.Primary);
+        keyboard.AddButton(GetCommand<GroupManagementState>(), VkButtonColor.Primary);
+        
         keyboard.AddRow();
-        keyboard.AddButton("Управление факультетами", VkButtonColor.Secondary);
+        keyboard.AddButton(GetCommand<FacultyState>(), VkButtonColor.Secondary);
         
         return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay, keyboard: keyboard);
     }

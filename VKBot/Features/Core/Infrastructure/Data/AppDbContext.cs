@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Faculty> Faculties { get; set; }
     public DbSet<Message> Messages { get; set; }
     public DbSet<MessageDelivery> MessageDeliveries { get; set; }
+    public DbSet<Reference> References { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

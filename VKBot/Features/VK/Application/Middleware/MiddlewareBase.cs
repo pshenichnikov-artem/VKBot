@@ -1,15 +1,18 @@
 using VKBot.Features.VK.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace VKBot.Features.VK.Application.Middleware;
 
 public abstract class MiddlewareBase
 {
-    public virtual async Task InvokeAsync(VkContext context, Func<Task> next)
+    protected readonly ILogger _logger;
+
+    protected MiddlewareBase(ILogger logger)
     {
-        await next();
+        _logger = logger;
     }
 
-    public virtual async Task OnCallbackAsync(VkContext context, Func<Task> next)
+    public virtual async Task InvokeAsync(VkContext context, Func<Task> next)
     {
         await next();
     }

@@ -6,16 +6,20 @@ using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.Core.Domain.Models;
 using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Application.Middleware.Attributes;
+using VKBot.Features.VK.Domain.Models;
+using VKBot.Features.VK.Enums;
 
 namespace VKBot.Features.Core.Application.States.UserState
 {
-    [State("вопрос", UserRole.Student)]
-    [Description(0, "❓ Обращение к администрации\nКоманда для отправки вопросов администраторам. Опишите вашу проблему или вопрос, и администраторы ответят вам.")]
-    [Description(1, "📝 Напишите вопрос\nОпишите вашу проблему или вопрос подробно")]
+    [State("Вопрос", UserRole.Student)]
+    [Description(0, "Выбор администратора")]
+    [Description(1, "📝 Напишите вопрос")]
+    [Description(2, "Отправка вопроса")]
     public class QuestionState : BaseState
     {
         [NonSerialized]
         private readonly AppDbContext _context;
+        private long _selectedAdminId;
 
         public QuestionState(AppDbContext context)
         { 
@@ -30,16 +34,50 @@ namespace VKBot.Features.Core.Application.States.UserState
         {
             return Step switch
             {
-                0 => AskQuestion(),
-                1 => await ProcessQuestion(message),
+                0 => await ShowAdminSelection(),
+                1 => await ProcessAdminSelection(message),
+                2 => await ProcessQuestion(message),
                 _ => new StateResult("Ошибка", StateAction.End)
             };
         }
 
-        private StateResult AskQuestion()
+        private async Task<StateResult> ShowAdminSelection()
         {
             Step = 1;
-            return new StateResult("❓ Введите ваш вопрос:", StateAction.Stay);
+            
+            var admins = await _context.Users
+                .Where(u => u.Role == UserRole.Admin.ToString() && u.IsConfirmed && !u.IsBlocked)
+                .ToListAsync();
+                
+            if (!admins.Any())
+            {
+                return new StateResult("❌ Администраторы недоступны", StateAction.End);
+            }
+            
+            var keyboard = VkKeyboard.Create(false, true);
+            foreach (var admin in admins)
+            {
+                keyboard.AddRow();
+                keyboard.AddButton(admin.FullName, VkButtonColor.Primary);
+            }
+            
+            return new StateResult("👥 Выберите администратора:", StateAction.Stay, keyboard: keyboard);
+        }
+        
+        private async Task<StateResult> ProcessAdminSelection(UserMessage message)
+        {
+            var adminName = message.Text?.Trim();
+            var admin = await _context.Users
+                .FirstOrDefaultAsync(u => u.FullName == adminName && u.Role == UserRole.Admin.ToString() && u.IsConfirmed && !u.IsBlocked);
+                
+            if (admin == null)
+            {
+                return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay);
+            }
+            
+            _selectedAdminId = admin.VkUserId;
+            Step = 2;
+            return new StateResult($"❓ Напишите вопрос для {admin.FullName}:", StateAction.Stay);
         }
 
         private async Task<StateResult> ProcessQuestion(UserMessage message)
@@ -50,10 +88,6 @@ namespace VKBot.Features.Core.Application.States.UserState
                 return new StateResult("❌ Вопрос не может быть пустым\n❓ Напишите ваш вопрос:", StateAction.Stay);
             }
 
-            var admins = await _context.Users
-                .Where(u => u.Role == UserRole.Admin.ToString() && u.IsConfirmed && !u.IsBlocked)
-                .ToListAsync();
-
             var msg = new Message
             {
                 SenderId = message.UserId,
@@ -62,19 +96,17 @@ namespace VKBot.Features.Core.Application.States.UserState
             _context.Messages.Add(msg);
             await _context.SaveChangesAsync();
 
-            foreach (var admin in admins)
+            _context.MessageDeliveries.Add(new MessageDelivery
             {
-                _context.MessageDeliveries.Add(new MessageDelivery
-                {
-                    MessageId = msg.Id,
-                    RecipientId = admin.VkUserId,
-                    DeliveryStatus = MessageStatus.Pending.ToString(),
-                    DispatchTime = DateTime.UtcNow
-                });
-            }
+                MessageId = msg.Id,
+                RecipientId = _selectedAdminId,
+                DeliveryStatus = MessageStatus.Pending.ToString(),
+                DispatchTime = DateTime.UtcNow
+            });
             await _context.SaveChangesAsync();
 
-            return new StateResult($"✅ Вопрос отправлен\n👥 Администраторов: {admins.Count}", StateAction.End);
+            var admin = await _context.Users.FirstAsync(u => u.VkUserId == _selectedAdminId);
+            return new StateResult($"✅ Вопрос отправлен администратору {admin.FullName}", StateAction.End);
         }
     }
 }

@@ -10,7 +10,7 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("изменить")]
+[State("Изменить")]
 [Description(0, "✏️ Редактирование данных студента")]
 [Description(1, "🔍 Поиск студента")]
 [Description(2, "📝 Ввод нового ФИО")]

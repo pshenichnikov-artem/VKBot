@@ -12,7 +12,7 @@ using VKBot.Features.VK.Application.Middleware.Attributes;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("бан", UserRole.Admin)]
+[State("Бан", UserRole.Admin)]
 [Description(0, "🚫 Управление заблокированными студентами")]
 [Description(1, "📋 Выбор действия")]
 [Description(2, "🔢 Ввод VK ID для разблокировки")]
