@@ -6,6 +6,7 @@ using VKBot.Features.Core.Data;
 using VKBot.Features.Core.Domain.Enums;
 using VKBot.Features.VK.Application.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
+using Sprache;
 
 namespace VKBot.Features.Host.BackgroundServices;
 
@@ -64,19 +65,22 @@ public class MessageDeliveryService : BackgroundService
             try
             {
                 var result = await _contentService.GenerateMessageContent(delivery.Message);
-                long? messageId = 1; //await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
-
-                if (messageId.HasValue)
+                long? messageId = null; 
+                foreach (var message in result.Messages)
                 {
-                    delivery.DeliveryStatus = MessageStatus.Sent.ToString();
-                    delivery.SentAt = DateTime.UtcNow;
-                    delivery.RetryCount = 0;
-                }
-                else
-                {
-                    delivery.DeliveryStatus = MessageStatus.Error.ToString();
-                    delivery.RetryCount++;
-                    delivery.NextRetryAt = DateTime.UtcNow.AddMinutes(5 * delivery.RetryCount);
+                    messageId = await _vkBot.SendMessageAsync(delivery.RecipientId, message.Text, keyboard: message.Keyboard);
+                    if (messageId.HasValue)
+                    {
+                        delivery.DeliveryStatus = MessageStatus.Sent.ToString();
+                        delivery.SentAt = DateTime.UtcNow;
+                        delivery.RetryCount = 0;
+                    }
+                    else
+                    {
+                        delivery.DeliveryStatus = MessageStatus.Error.ToString();
+                        delivery.RetryCount++;
+                        delivery.NextRetryAt = DateTime.UtcNow.AddMinutes(5 * delivery.RetryCount);
+                    }
                 }
             }
             catch (Exception ex)
@@ -113,17 +117,22 @@ public class MessageDeliveryService : BackgroundService
             try
             {
                 var result = await _contentService.GenerateMessageContent(delivery.Message);
-                long? messageId = 1; //await _vkBot.SendMessageAsync(delivery.RecipientId, result.Text, keyboard: result.Keyboard);
-
-                if (messageId.HasValue)
+                long? messageId = null;
+                foreach (var message in result.Messages)
                 {
-                    delivery.DeliveryStatus = MessageStatus.Sent.ToString();
-                    delivery.SentAt = DateTime.UtcNow;
-                }
-                else
-                {
-                    delivery.RetryCount++;
-                    delivery.NextRetryAt = DateTime.UtcNow.AddMinutes(10 * delivery.RetryCount);
+                    messageId = await _vkBot.SendMessageAsync(delivery.RecipientId, message.Text, keyboard: message.Keyboard);
+                    if (messageId.HasValue)
+                    {
+                        delivery.DeliveryStatus = MessageStatus.Sent.ToString();
+                        delivery.SentAt = DateTime.UtcNow;
+                        delivery.RetryCount = 0;
+                    }
+                    else
+                    {
+                        delivery.DeliveryStatus = MessageStatus.Error.ToString();
+                        delivery.RetryCount++;
+                        delivery.NextRetryAt = DateTime.UtcNow.AddMinutes(5 * delivery.RetryCount);
+                    }
                 }
             }
             catch (Exception ex)

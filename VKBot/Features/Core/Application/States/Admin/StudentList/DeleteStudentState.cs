@@ -90,6 +90,7 @@ public class DeleteStudentState : BaseState
             if (student != null)
             {
                 student.IsDeleted = true;
+                student.Role = UserRole.Unregistered.ToString();
                 await _context.SaveChangesAsync();
                 
                 await _notificationService.SendUserDeletedNotification(student.VkUserId);
