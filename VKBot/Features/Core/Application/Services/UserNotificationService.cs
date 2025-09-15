@@ -37,7 +37,7 @@ public class UserNotificationService
     {
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
-        keyboard.AddButton("/confirm", VkButtonColor.Primary);
+        keyboard.AddButton("Одобрить", VkButtonColor.Primary);
         
         await _vkBot.SendMessageAsync(adminId, $"🎓 Новая регистрация\n\n👤 Студент: {fullName}\n🎓 Группа: {groupName}", keyboard: keyboard);
     }

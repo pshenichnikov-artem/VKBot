@@ -71,7 +71,7 @@ public class AdminSyncService : BackgroundService
                 .IgnoreQueryFilters()
                 .Where(u => u.Role == UserRole.Admin.ToString())
                 .ToListAsync();
-            
+
             // Удаляем админов, которых нет в VK
             var adminsToRemove = dbAdmins.Where(a => !vkAdminIds.Contains(a.VkUserId)).ToList();
             foreach (var admin in adminsToRemove)
