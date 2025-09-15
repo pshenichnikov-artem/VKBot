@@ -6,7 +6,7 @@ using System.Reflection;
 
 namespace VKBot.Features.Core.Application.States.UserState;
 
-[State("Справка", UserRole.Student)]
+[State("Помощь", UserRole.Student)]
 [Description(0, "📚 Справка по командам")]
 public class UserHelpState : BaseState
 {
@@ -29,7 +29,7 @@ public class UserHelpState : BaseState
             help += $"{state.StateAttr!.Command} -- {description}\n";
         }
 
-        help += "\nℹ️ Общие команды:\n/Отмена -- Отменить любую текущую команду";
+        help += "\nℹ️ Общие команды:\nОтмена -- Отменить любую текущую команду";
         
         return new StateResult(help.TrimEnd(), StateAction.End);
     }
