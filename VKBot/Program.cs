@@ -13,6 +13,7 @@ using VKBot.Features.VK.Infrastructure;
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext:l}] {Message:lj}{NewLine}{Exception}")
     .MinimumLevel.Override("System.Net.Http.HttpClient", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", Serilog.Events.LogEventLevel.Warning)
     .CreateLogger();
 
 var logger = Log.ForContext<Program>();
@@ -45,13 +46,12 @@ try
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         context.Database.Migrate();
         logger.Information("Миграции БД завершены");
-        
-        var adminSync = scope.ServiceProvider.GetRequiredService<AdminSyncService>();
-        await adminSync.StartAsync(CancellationToken.None);
     }
 
-    logger.Information("Запуск VK LongPoll сервиса");
-    var longPollService = serviceProvider.GetRequiredService<VkLongPollService>();
+    logger.Information("Запуск сервисов");
+    var longPollService = serviceProvider.GetRequiredService<VkLongPollBackgroundService>();
+    var messageDeliveryService = serviceProvider.GetRequiredService<MessageDeliveryBackgroundService>();
+    var adminSyncService = serviceProvider.GetRequiredService<AdminSyncBackgroundService>();
     var cts = new CancellationTokenSource();
 
     Console.CancelKeyPress += (_, e) =>
@@ -61,7 +61,11 @@ try
         cts.Cancel();
     };
 
-    await longPollService.ExecuteAsync(cts.Token);
+    var longPollTask = longPollService.ExecuteAsync(cts.Token);
+    var messageDeliveryTask = messageDeliveryService.StartAsync(cts.Token);
+    var adminSyncTask = adminSyncService.StartAsync(cts.Token);
+    
+    await Task.WhenAll(longPollTask, messageDeliveryTask, adminSyncTask);
 }
 catch(Exception ex)
 {

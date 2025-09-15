@@ -7,12 +7,13 @@ using VKBot.Features.Core.Enums;
 using VKBot.Features.VK.Enums;
 using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.VK.Application.Middleware.Attributes;
+using VKBot.Features.VK.Application.Utils;
 using System.Text.RegularExpressions;
 using Group = VKBot.Features.Core.Domain.Entities.Group;
 
 namespace VKBot.Features.Core.Application.States;
 
-[State("Группы управление")]
+[State("Группы")]
 [Description(0, "👥 Управление группами")]
 [Description(1, "📋 Выбор действия")]
 [Description(2, "🏛️ Выбор факультета")]
@@ -23,6 +24,7 @@ public class GroupManagementState : BaseState
     private readonly AppDbContext _context;
     private string? _action;
     private int _facultyId;
+    private int _facultyPage = 0;
 
     public GroupManagementState(AppDbContext context)
     { 
@@ -119,25 +121,32 @@ public class GroupManagementState : BaseState
             return new StateResult("❌ Сначала создайте факультеты", StateAction.End);
         }
         
-        var facultiesList = "🏛️ Выберите факультет:\n";
+        var keyboard = KeyboardPagination.CreatePaginatedKeyboard(
+            faculties, 
+            _facultyPage, 
+            f => f.Name, 
+            out var pageInfo,
+            VkButtonColor.Primary);
         
-        var keyboard = VkKeyboard.Create(false, true);
-        for (int i = 0; i < faculties.Count; i++)
-        {
-            var faculty = faculties[i];
-            facultiesList += $"• {faculty.Name}\n";
-            
-            if (i % 2 == 0) keyboard.AddRow();
-            keyboard.AddButton(faculty.Name, VkButtonColor.Primary);
-        }
-        
-        return new StateResult(facultiesList, StateAction.Stay, keyboard: keyboard);
+        return new StateResult($"🏛️ Выберите факультет{pageInfo}:", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ProcessFacultySelection(UserMessage message)
     {
-        var facultyName = message.Text?.Trim();
-        var faculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name.ToLower() == facultyName.ToLower());
+        var input = message.Text?.Trim();
+        
+        if (KeyboardPagination.IsNavigationCommand(input, out var direction))
+        {
+            var totalCount = await _context.Faculties.CountAsync();
+            var newPage = KeyboardPagination.GetValidPage(_facultyPage, direction, totalCount);
+            if (newPage != _facultyPage)
+            {
+                _facultyPage = newPage;
+                return await ShowFacultySelection();
+            }
+        }
+        
+        var faculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name.ToLower() == input.ToLower());
         
         if (faculty == null)
         {
@@ -226,8 +235,8 @@ public class GroupManagementState : BaseState
     private (string cohort, short groupNumber) ParseGroupName(string groupName)
     {
         var parts = groupName.Split('-');
-        var cohort = string.Join("-", parts.Take(parts.Length - 2));
         var groupNumber = short.Parse(parts[^2]);
+        var cohort = groupName.Replace($"-{groupNumber}-", "-");
         
         return (cohort, groupNumber);
     }

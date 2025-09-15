@@ -42,7 +42,8 @@ public class AlertState : BaseState
         Step = 1;
         
         var studentsCount = await _context.Users
-            .CountAsync(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString());
+            .Include(u => u.Group)
+            .CountAsync(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString() && u.Group!.StudyForm != "Заочная");
         
         var keyboard = VkKeyboard.Create(false, true);
         keyboard.AddRow();
@@ -77,17 +78,20 @@ public class AlertState : BaseState
     private async Task<StateResult> SendAlert()
     {
         var recipients = await _context.Users
-            .Where(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString())
+            .Include(u => u.Group)
+            .Where(u => u.IsConfirmed && !u.IsBlocked && u.Role == UserRole.Student.ToString() && u.Group!.StudyForm != "Заочная")
             .ToListAsync();
 
         var msg = new Message
         {
             SenderId = null,
-            Payload = $"{{\"type\":\"{PayloadType.Alert}\",\"deadline\":\"{DateTime.UtcNow.AddHours(5):yyyy-MM-ddTHH:mm:ssZ}\"}}"
+            Payload = null
         };
         _context.Messages.Add(msg);
         await _context.SaveChangesAsync();
 
+        msg.Payload = $"{{\"type\":\"{PayloadType.Alert}\",\"messageId\":{msg.Id},\"deadline\":\"{DateTime.UtcNow.AddHours(5):yyyy-MM-ddTHH:mm:ssZ}\"}}";
+        
         foreach (var recipient in recipients)
         {
             _context.MessageDeliveries.Add(new MessageDelivery

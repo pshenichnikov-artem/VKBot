@@ -8,5 +8,6 @@ public enum PayloadType
     AlertResponse,
     EventResponse,
     AnswerQuestion,
-    Excel
+    Excel,
+    ConfirmUser
 }

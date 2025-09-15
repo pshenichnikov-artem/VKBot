@@ -8,9 +8,9 @@ public static class HostFeatureExtensions
 {
     public static IServiceCollection AddHostFeature(this IServiceCollection services)
     {
-        //services.AddSingleton<MessageDeliveryService>();
-        services.AddSingleton<VkLongPollService>();
-        services.AddSingleton<AdminSyncService>();
+        services.AddSingleton<MessageDeliveryBackgroundService>();
+        services.AddSingleton<VkLongPollBackgroundService>();
+        services.AddSingleton<AdminSyncBackgroundService>();
 
         return services;
     }

@@ -43,7 +43,7 @@ public class StudentsState : BaseState
         
         var students = await _context.Users
             .Include(u => u.Group)
-            .Where(u => u.Role == UserRole.Student.ToString() && u.IsConfirmed && !u.IsBlocked)
+            .Where(u => u.Role == UserRole.Student.ToString() && !u.IsBlocked)
             .OrderBy(u => u.Group!.Name)
             .ThenBy(u => u.FullName)
             .ToListAsync();

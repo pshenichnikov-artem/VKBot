@@ -10,6 +10,7 @@ public class VkContext
     public JsonElement Update { get; set; }
     public VkMessageItem? Message { get; set; }
     public User? User { get; set; }
+    public List<BaseState> FoundStates { get; set; } = new();
     public BaseState? FoundState { get; set; }
     public List<VkResult> Results { get; set; } = new();
     public bool ShouldShowKeyboard { get; set; }

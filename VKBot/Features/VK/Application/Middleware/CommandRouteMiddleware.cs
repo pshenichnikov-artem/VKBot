@@ -35,53 +35,52 @@ public class CommandRouteMiddleware : MiddlewareBase
             return;
         }
 
-        BaseState? foundState = null;
+        List<BaseState> foundStates = new();
 
         // Сначала ищем по payload (приоритетнее)
         if (context.Message?.Payload.HasValue == true && 
             context.Message.Payload.Value.TryGetProperty("type", out var typeElement) &&
             Enum.TryParse<PayloadType>(typeElement.GetString(), true, out var payloadType))
         {
-            foundState = FindStateByPayloadType(payloadType);
+            foundStates = FindStateByPayloadType(payloadType);
         }
 
-        if (foundState == null && !string.IsNullOrEmpty(context.Message?.Text))
+        if (foundStates.Count == 0 && !string.IsNullOrEmpty(context.Message?.Text))
         {
-            foundState = FindStateByCommand(context.Message.Text.ToLower().Trim());
+            foundStates = FindStateByCommand(context.Message.Text.ToLower().Trim());
         }
-
-        context.FoundState = foundState;
         
-
-        
-        if (foundState == null)
+        if (foundStates.Count == 0)
         {
             _logger.LogInformation("Команда не найдена: {Text}", context.Message?.Text);
             throw new CommandNotFoundException();
         }
 
-        _logger.LogInformation("Найдена команда: {Command}", foundState.GetType().Name);
+        context.FoundStates = foundStates;
+        context.FoundState = foundStates.Count == 1 ? foundStates[0] : null;
+        
+        _logger.LogInformation("Найдено состояний: {Count}", foundStates.Count);
         await next();
     }
 
-    private BaseState? FindStateByPayloadType(PayloadType payloadType)
+    private List<BaseState> FindStateByPayloadType(PayloadType payloadType)
     {
-        var stateType = Assembly.GetExecutingAssembly()
+        var stateTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
             .Where(t => t.IsSubclassOf(typeof(BaseState)) && !t.IsAbstract)
-            .FirstOrDefault(t => t.GetCustomAttribute<StateAttribute>()?.PayloadType == payloadType);
+            .Where(t => t.GetCustomAttribute<StateAttribute>()?.PayloadType == payloadType);
 
-        return stateType != null ? (BaseState)_serviceProvider.GetRequiredService(stateType) : null;
+        return stateTypes.Select(t => (BaseState)_serviceProvider.GetRequiredService(t)).ToList();
     }
 
-    private BaseState? FindStateByCommand(string command)
+    private List<BaseState> FindStateByCommand(string command)
     {
-        var stateType = Assembly.GetExecutingAssembly()
+        var stateTypes = Assembly.GetExecutingAssembly()
             .GetTypes()
             .Where(t => t.IsSubclassOf(typeof(BaseState)) && !t.IsAbstract)
-            .FirstOrDefault(t => string.Equals(t.GetCustomAttribute<StateAttribute>()?.Command, command, StringComparison.OrdinalIgnoreCase)
+            .Where(t => string.Equals(t.GetCustomAttribute<StateAttribute>()?.Command, command, StringComparison.OrdinalIgnoreCase)
             && t.GetCustomAttribute<StateAttribute>()?.IsEntryState == true);
         
-        return stateType != null ? (BaseState)_serviceProvider.GetRequiredService(stateType) : null;
+        return stateTypes.Select(t => (BaseState)_serviceProvider.GetRequiredService(t)).ToList();
     }
 }

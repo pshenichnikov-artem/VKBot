@@ -25,7 +25,7 @@ public class EventContentProvider : IMessageContentProvider
 
         var keyboard = VkKeyboard.Create(inline: true);
         keyboard.AddRow();
-        keyboard.AddButton("/event", VkButtonColor.Primary);
+        keyboard.AddButton("События", VkButtonColor.Primary);
 
         return new StateResult(text, StateAction.End, keyboard: keyboard);
     }

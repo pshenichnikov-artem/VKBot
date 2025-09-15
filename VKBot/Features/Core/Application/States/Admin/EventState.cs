@@ -199,7 +199,7 @@ public class EventState : BaseState
                 .ToListAsync(),
             "cohort" => await _context.Users.Include(u => u.Group)
                 .Where(u => u.IsConfirmed && !u.IsBlocked && u.Group != null && 
-                           _targetGroups.Any(cohort => u.Group.Name.StartsWith(cohort)) && u.Role == UserRole.Student.ToString())
+                           _targetGroups.Any(cohort => u.Group.Cohort.Contains(cohort)) && u.Role == UserRole.Student.ToString())
                 .ToListAsync(),
             "faculty" => await _context.Users.Include(u => u.Group).ThenInclude(g => g.Faculty)
                 .Where(u => u.IsConfirmed && !u.IsBlocked && u.Group != null && u.Group.Faculty != null &&

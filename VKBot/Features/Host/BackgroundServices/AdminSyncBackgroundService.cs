@@ -11,14 +11,14 @@ using VKBot.Features.Core.Enums;
 
 namespace VKBot.Features.Host.BackgroundServices;
 
-public class AdminSyncService : BackgroundService
+public class AdminSyncBackgroundService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<AdminSyncService> _logger;
+    private readonly ILogger<AdminSyncBackgroundService> _logger;
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
 
-    public AdminSyncService(IServiceProvider serviceProvider, ILogger<AdminSyncService> logger, 
+    public AdminSyncBackgroundService(IServiceProvider serviceProvider, ILogger<AdminSyncBackgroundService> logger, 
         IConfiguration configuration, HttpClient httpClient)
     {
         _serviceProvider = serviceProvider;
@@ -76,7 +76,8 @@ public class AdminSyncService : BackgroundService
             var adminsToRemove = dbAdmins.Where(a => !vkAdminIds.Contains(a.VkUserId)).ToList();
             foreach (var admin in adminsToRemove)
             {
-                admin.Role = UserRole.Student.ToString();
+                admin.Role = UserRole.Unregistered.ToString();
+                admin.IsDeleted = true;
                 _logger.LogInformation("Удален админ: {UserId}", admin.VkUserId);
             }
             
@@ -92,10 +93,22 @@ public class AdminSyncService : BackgroundService
                 var usersResponse = await _httpClient.GetStringAsync(usersUrl);
                 var usersData = JsonSerializer.Deserialize<VkUsersResponse>(usersResponse);
                 
+                if (usersData?.Response == null)
+                {
+                    _logger.LogError("Не удалось получить данные пользователей из VK API");
+                    return;
+                }
+                
                 foreach (var adminId in newAdminIds)
                 {
-                    var vkUser = usersData?.Response?.FirstOrDefault(u => u.Id == adminId);
-                    var fullName = vkUser != null ? $"{vkUser.FirstName} {vkUser.LastName}" : "Администратор";
+                    var vkUser = usersData.Response.FirstOrDefault(u => u.Id == adminId);
+                    if (vkUser == null)
+                    {
+                        _logger.LogError("Не удалось получить данные пользователя {UserId} из VK API", adminId);
+                        continue;
+                    }
+                    
+                    var fullName = $"{vkUser.FirstName} {vkUser.LastName}";
                     
                     var existingUser = await context.Users
                         .IgnoreQueryFilters()

@@ -51,9 +51,10 @@ public class ViewReferenceState : BaseState
             references, 
             _currentPage, 
             r => r.Title, 
+            out var pageInfo,
             VkButtonColor.Primary);
         
-        return new StateResult("📚 Выберите справку:", StateAction.Stay, keyboard: keyboard);
+        return new StateResult($"📚 Выберите справку{pageInfo}:", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ShowReferenceContent(UserMessage message)
@@ -63,8 +64,12 @@ public class ViewReferenceState : BaseState
         if (KeyboardPagination.IsNavigationCommand(input, out var direction))
         {
             var totalCount = await _context.References.CountAsync();
-            _currentPage = KeyboardPagination.GetValidPage(_currentPage, direction, totalCount);
-            return await ShowReferenceList();
+            var newPage = KeyboardPagination.GetValidPage(_currentPage, direction, totalCount);
+            if (newPage != _currentPage)
+            {
+                _currentPage = newPage;
+                return await ShowReferenceList();
+            }
         }
         
         var reference = await _context.References.FirstOrDefaultAsync(r => r.Title == input);

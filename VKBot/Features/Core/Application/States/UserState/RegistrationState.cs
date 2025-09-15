@@ -28,6 +28,7 @@ public class RegistrationState : BaseState
     private readonly UserNotificationService _notificationService;
     private int _facultyId;
     private long _groupId;
+    private int _facultyPage = 0;
     private int _groupPage = 0;
 
     public RegistrationState(AppDbContext context, UserNotificationService notificationService)
@@ -77,22 +78,33 @@ public class RegistrationState : BaseState
             return new StateResult("❌ Факультеты не настроены\nОбратитесь к администрации", StateAction.End);
         }
         
-        var text = "👋 Добро пожаловать!\n🏛️ Выберите ваш факультет:";
+        var keyboard = KeyboardPagination.CreatePaginatedKeyboard(
+            faculties, 
+            _facultyPage, 
+            f => f.Name, 
+            out var pageInfo,
+            VkButtonColor.Primary);
         
-        var keyboard = VkKeyboard.Create(false, true);
-        for (int i = 0; i < faculties.Count; i++)
-        {
-            if (i % 2 == 0) keyboard.AddRow();
-            keyboard.AddButton(faculties[i].Name, VkButtonColor.Primary);
-        }
-        
-        return new StateResult(text, StateAction.Stay, keyboard: keyboard);
+        return new StateResult($"👋 Добро пожаловать!\n🏛️ Выберите ваш факультет{pageInfo}:", StateAction.Stay, keyboard: keyboard);
+
     }
     
     private async Task<StateResult> ProcessFaculty(UserMessage message)
     {
-        var facultyName = message.Text?.Trim();
-        var faculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name.ToLower() == facultyName.ToLower());
+        var input = message.Text?.Trim();
+        
+        if (KeyboardPagination.IsNavigationCommand(input, out var direction))
+        {
+            var totalCount = await _context.Faculties.CountAsync();
+            var newPage = KeyboardPagination.GetValidPage(_facultyPage, direction, totalCount);
+            if (newPage != _facultyPage)
+            {
+                _facultyPage = newPage;
+                return await ShowFaculties();
+            }
+        }
+        
+        var faculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name.ToLower() == input.ToLower());
         
         if (faculty == null)
         {
@@ -122,9 +134,10 @@ public class RegistrationState : BaseState
             groups, 
             _groupPage, 
             g => g.Name, 
+            out var pageInfo,
             VkButtonColor.Primary);
         
-        return new StateResult("👥 Выберите вашу группу:", StateAction.Stay, keyboard: keyboard);
+        return new StateResult($"👥 Выберите вашу группу{pageInfo}:", StateAction.Stay, keyboard: keyboard);
     }
     
     private async Task<StateResult> ProcessGroup(UserMessage message)
@@ -134,8 +147,12 @@ public class RegistrationState : BaseState
         if (KeyboardPagination.IsNavigationCommand(input, out var direction))
         {
             var totalCount = await _context.Groups.CountAsync(g => g.FacultyId == _facultyId);
-            _groupPage = KeyboardPagination.GetValidPage(_groupPage, direction, totalCount);
-            return await ShowGroups();
+            var newPage = KeyboardPagination.GetValidPage(_groupPage, direction, totalCount);
+            if (newPage != _groupPage)
+            {
+                _groupPage = newPage;
+                return await ShowGroups();
+            }
         }
         
         var group = await _context.Groups.FirstOrDefaultAsync(g => g.Name.ToLower() == input.ToLower() && g.FacultyId == _facultyId);
@@ -159,6 +176,17 @@ public class RegistrationState : BaseState
         }
 
         var group = await _context.Groups.FirstAsync(g => g.Id == _groupId);
+        
+        // Проверяем лимит студентов в группе
+        var studentsInGroup = await _context.Users
+            .Where(u => u.GroupId == _groupId && !u.IsDeleted)
+            .CountAsync();
+            
+        if (studentsInGroup >= 2)
+        {
+            return new StateResult("❌ В данной группе уже зарегистрировано максимальное количество студентов (2)\nВыберите другую группу", StateAction.End);
+        }
+        
         var existingUser = await _context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.VkUserId == message.UserId);
 
         if (existingUser != null && existingUser.IsDeleted && !existingUser.IsBlocked)
@@ -195,7 +223,7 @@ public class RegistrationState : BaseState
 
         foreach (var admin in admins)
         {
-            await _notificationService.SendNewRegistrationNotification(admin.VkUserId, fullName, group.Name);
+            await _notificationService.SendNewRegistrationNotification(admin.VkUserId, fullName, group.Name, message.UserId);
         }
 
         return new StateResult("✅ Регистрация завершена\n⏳ Ожидайте подтверждения", StateAction.End);

@@ -9,13 +9,13 @@ using VKBot.Features.VK.Application.Exceptions;
 
 namespace VKBot.Features.Host.Services;
 
-public partial class VkLongPollService
+public partial class VkLongPollBackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<VkLongPollService> _logger;
+    private readonly ILogger<VkLongPollBackgroundService> _logger;
     private readonly ConcurrentDictionary<long, SemaphoreSlim> _userLocks = new();
 
-    public VkLongPollService(IServiceProvider serviceProvider, ILogger<VkLongPollService> logger)
+    public VkLongPollBackgroundService(IServiceProvider serviceProvider, ILogger<VkLongPollBackgroundService> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;

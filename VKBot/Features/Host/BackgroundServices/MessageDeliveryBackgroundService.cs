@@ -10,16 +10,16 @@ using Sprache;
 
 namespace VKBot.Features.Host.BackgroundServices;
 
-public class MessageDeliveryService : BackgroundService
+public class MessageDeliveryBackgroundService : BackgroundService
 {
     private readonly AppDbContext _context;
     private readonly IVkBot _vkBot;
     private readonly MessageContentService _contentService;
     private readonly IMemoryCache _memoryCache;
-    private readonly ILogger<MessageDeliveryService> _logger;
+    private readonly ILogger<MessageDeliveryBackgroundService> _logger;
 
-    public MessageDeliveryService(AppDbContext context, IVkBot vkBot, MessageContentService contentService, 
-        IMemoryCache memoryCache, ILogger<MessageDeliveryService> logger)
+    public MessageDeliveryBackgroundService(AppDbContext context, IVkBot vkBot, MessageContentService contentService, 
+        IMemoryCache memoryCache, ILogger<MessageDeliveryBackgroundService> logger)
     {
         _context = context;
         _vkBot = vkBot;

@@ -12,8 +12,17 @@ public static class KeyboardPagination
         List<T> items, 
         int currentPage, 
         Func<T, string> getButtonText, 
-        VkButtonColor buttonColor = VkButtonColor.Primary,
-        bool addNavigationButtons = true)
+        VkButtonColor buttonColor = VkButtonColor.Primary)
+    {
+        return CreatePaginatedKeyboard(items, currentPage, getButtonText, out _, buttonColor);
+    }
+    
+    public static VkKeyboard CreatePaginatedKeyboard<T>(
+        List<T> items, 
+        int currentPage, 
+        Func<T, string> getButtonText, 
+        out string pageInfo,
+        VkButtonColor buttonColor = VkButtonColor.Primary)
     {
         var keyboard = VkKeyboard.Create(false, true);
         
@@ -22,6 +31,7 @@ public static class KeyboardPagination
         var endIndex = Math.Min(startIndex + ButtonsPerPage, items.Count);
         
         var pageItems = items.Skip(startIndex).Take(ButtonsPerPage).ToList();
+        pageInfo = totalPages > 1 ? $" (стр. {currentPage + 1}/{totalPages})" : "";
         
         for (int i = 0; i < pageItems.Count; i++)
         {
@@ -29,14 +39,12 @@ public static class KeyboardPagination
             keyboard.AddButton(getButtonText(pageItems[i]), buttonColor);
         }
         
-        if (addNavigationButtons && totalPages > 1)
+        if (totalPages > 1)
         {
             keyboard.AddRow();
             
             if (currentPage > 0)
                 keyboard.AddButton("◀️ Назад", VkButtonColor.Secondary);
-                
-            keyboard.AddButton($"{currentPage + 1}/{totalPages}", VkButtonColor.Secondary);
             
             if (currentPage < totalPages - 1)
                 keyboard.AddButton("Вперёд ▶️", VkButtonColor.Secondary);

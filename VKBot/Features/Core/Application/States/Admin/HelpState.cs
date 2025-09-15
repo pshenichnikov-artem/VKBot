@@ -18,6 +18,7 @@ public class HelpState : BaseState
             .Where(t => t.IsSubclassOf(typeof(BaseState)) && !t.IsAbstract)
             .Select(t => new { Type = t, StateAttr = t.GetCustomAttribute<StateAttribute>() })
             .Where(x => x.StateAttr != null && x.StateAttr.AllowedRoles != null && x.StateAttr.AllowedRoles.Contains(UserRole.Admin))
+            .Where(x => x.StateAttr!.PayloadType == null)
             .ToList();
 
         foreach (var state in stateTypes)
@@ -28,7 +29,7 @@ public class HelpState : BaseState
             help += $"{state.StateAttr!.Command} -- {description}\n";
         }
 
-        help += "\nℹ️ Общие команды:\n/cancel -- Отменить любую текущую команду";
+        help += "\nℹ️ Общие команды:\nОтмена -- Отменить любую текущую команду";
         
         return new StateResult(help.TrimEnd(), StateAction.End);
     }

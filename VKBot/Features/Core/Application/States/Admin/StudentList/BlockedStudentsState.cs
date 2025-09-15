@@ -62,8 +62,7 @@ public class BlockedStudentsState : BaseState
         
         foreach (var student in blockedStudents)
         {
-            var vkLink = $"https://vk.com/id{student.VkUserId}";
-            studentsList += $"{student.FullName} VK ID: {student.VkUserId} {vkLink}\n";
+            studentsList += $"{student.FullName} VK ID: [https://vk.com/id{student.VkUserId}|{student.VkUserId}]\n";
         }
         
         var keyboard = VkKeyboard.Create(false, true);

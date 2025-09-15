@@ -33,7 +33,7 @@ public class EditReferenceState : BaseState
         {
             0 => await ShowReferenceSelection(),
             1 => await ProcessReferenceSelection(message),
-            2 => ProcessNewTitle(message),
+            2 => await ProcessNewTitle(message),
             3 => await ProcessNewDescription(message),
             _ => new StateResult("Ошибка", StateAction.End)
         };
@@ -49,9 +49,10 @@ public class EditReferenceState : BaseState
             references, 
             _currentPage, 
             r => r.Title, 
+            out var pageInfo,
             VkButtonColor.Primary);
         
-        return new StateResult("📋 Выберите справку для редактирования:", StateAction.Stay, keyboard: keyboard);
+        return new StateResult($"📋 Выберите справку для редактирования{pageInfo}:", StateAction.Stay, keyboard: keyboard);
     }
 
     private async Task<StateResult> ProcessReferenceSelection(UserMessage message)
@@ -61,8 +62,12 @@ public class EditReferenceState : BaseState
         if (KeyboardPagination.IsNavigationCommand(input, out var direction))
         {
             var totalCount = await _context.References.CountAsync();
-            _currentPage = KeyboardPagination.GetValidPage(_currentPage, direction, totalCount);
-            return await ShowReferenceSelection();
+            var newPage = KeyboardPagination.GetValidPage(_currentPage, direction, totalCount);
+            if (newPage != _currentPage)
+            {
+                _currentPage = newPage;
+                return await ShowReferenceSelection();
+            }
         }
         
         var reference = await _context.References.FirstOrDefaultAsync(r => r.Title == input);
@@ -77,7 +82,7 @@ public class EditReferenceState : BaseState
         return new StateResult($"📝 Текущий заголовок: {reference.Title}\nВведите новый заголовок:", StateAction.Stay);
     }
 
-    private StateResult ProcessNewTitle(UserMessage message)
+    private async Task<StateResult> ProcessNewTitle(UserMessage message)
     {
         _newTitle = message.Text?.Trim();
         
@@ -86,8 +91,9 @@ public class EditReferenceState : BaseState
             return new StateResult("❌ Заголовок не может быть пустым:", StateAction.Stay);
         }
 
+        var reference = await _context.References.FindAsync(_referenceId);
         Step = 3;
-        return new StateResult("📝 Введите новое описание:", StateAction.Stay);
+        return new StateResult($"📄 Текущее описание:\n{reference?.Description}\n\n📝 Введите новое описание:", StateAction.Stay);
     }
 
     private async Task<StateResult> ProcessNewDescription(UserMessage message)
