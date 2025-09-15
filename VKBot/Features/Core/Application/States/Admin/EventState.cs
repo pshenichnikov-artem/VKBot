@@ -25,6 +25,8 @@ public class EventState : BaseState
     private readonly AppDbContext _context;
     private string _targetType = "";
     private List<string> _targetGroups = new();
+    private string _eventTitle = "";
+    private long _eventContentMessageId = 0;
 
     public EventState(AppDbContext context)
     { 
@@ -130,9 +132,6 @@ public class EventState : BaseState
         return new StateResult("📝 Введите заголовок события:", StateAction.Stay);
     }
 
-    private string _eventTitle = "";
-    private long _eventContentMessageId = 0;
-
     private StateResult ProcessTitleStep(UserMessage message)
     {
         _eventTitle = message.Text ?? "";
@@ -163,6 +162,7 @@ public class EventState : BaseState
 
         var msg = new Message
         {
+            Id = _eventContentMessageId,
             SenderId = message.UserId,
             Payload = $"{{\"type\":\"{PayloadType.Event}\",\"title\":\"{_eventTitle.Replace("\"", "\\\"")}\",\"targets\":\"{string.Join(",", _targetGroups)}\",\"deadline\":\"{DateTime.UtcNow.AddHours(hours):yyyy-MM-ddTHH:mm:ssZ}\"}}"
         };

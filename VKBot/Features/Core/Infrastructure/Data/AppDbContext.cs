@@ -30,10 +30,13 @@ public class AppDbContext : DbContext
         
         
         modelBuilder.Entity<Message>()
+            .Property(m => m.Id)
+            .ValueGeneratedNever();
+        
+        modelBuilder.Entity<Message>()
             .HasOne(m => m.Sender)
             .WithMany(u => u.SentMessages)
             .HasForeignKey(m => m.SenderId)
-            
             .OnDelete(DeleteBehavior.Restrict);
         
 
