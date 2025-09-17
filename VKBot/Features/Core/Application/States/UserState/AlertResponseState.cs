@@ -142,6 +142,7 @@ public class AlertResponseState : BaseState
             // Создаем новый ответ
             var responseMsg = new Message
             {
+                Id = message.MessageId,
                 SenderId = message.UserId,
                 ReplyToMessageId = _alertMessageId,
                 Payload = payload

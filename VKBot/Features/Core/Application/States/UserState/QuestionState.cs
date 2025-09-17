@@ -90,6 +90,7 @@ namespace VKBot.Features.Core.Application.States.UserState
 
             var msg = new Message
             {
+                Id = message.MessageId,
                 SenderId = message.UserId,
                 Payload = $"{{\"type\":\"{PayloadType.Question}\",\"text\":\"{messageText.Replace("\"", "\\\"")}\"}}"
             };

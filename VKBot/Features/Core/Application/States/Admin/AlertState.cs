@@ -59,7 +59,7 @@ public class AlertState : BaseState
         
         if (input == "Подтвердить")
         {
-            return await SendAlert();
+            return await SendAlert(message);
         }
         
         if (input == "Отмена")
@@ -75,7 +75,7 @@ public class AlertState : BaseState
         return new StateResult("❌ Используйте кнопки для выбора", StateAction.Stay, keyboard: keyboard);
     }
 
-    private async Task<StateResult> SendAlert()
+    private async Task<StateResult> SendAlert(UserMessage message)
     {
         var recipients = await _context.Users
             .Include(u => u.Group)
@@ -84,6 +84,7 @@ public class AlertState : BaseState
 
         var msg = new Message
         {
+            Id = message.MessageId, //????
             SenderId = null,
             Payload = null
         };

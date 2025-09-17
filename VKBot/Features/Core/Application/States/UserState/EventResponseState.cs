@@ -166,6 +166,7 @@ public class EventResponseState : BaseState
         {
             var response = new Message
             {
+                Id = message.MessageId,
                 SenderId = message.UserId,
                 ReplyToMessageId = currentEvent.Id,
                 Payload = $"{{\"type\":\"{PayloadType.EventResponse}\",\"text\":\"{responseText.Replace("\"", "\\\"")}\"}}"
