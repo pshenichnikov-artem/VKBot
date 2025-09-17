@@ -9,6 +9,7 @@ using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 using VKBot.Features.VK.Application.Middleware.Attributes;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace VKBot.Features.Core.Application.States;
 
@@ -22,13 +23,16 @@ public class DeleteStudentState : BaseState
     private readonly AppDbContext _context;
     [NonSerialized]
     private readonly UserNotificationService _notificationService;
+    [NonSerialized]
+    private readonly IMemoryCache _memoryCache;
     private string? _studentName;
     private long _studentId;
 
-    public DeleteStudentState(AppDbContext context, UserNotificationService notificationService)
+    public DeleteStudentState(AppDbContext context, UserNotificationService notificationService, IMemoryCache memoryCache)
     { 
         _context = context;
         _notificationService = notificationService;
+        _memoryCache = memoryCache;
     }
     
 
@@ -92,6 +96,9 @@ public class DeleteStudentState : BaseState
                 student.IsDeleted = true;
                 student.Role = UserRole.Unregistered.ToString();
                 await _context.SaveChangesAsync();
+                
+                // Удаляем состояние из кэша
+                _memoryCache.Remove($"state_machine_{student.VkUserId}");
                 
                 await _notificationService.SendUserDeletedNotification(student.VkUserId);
             }

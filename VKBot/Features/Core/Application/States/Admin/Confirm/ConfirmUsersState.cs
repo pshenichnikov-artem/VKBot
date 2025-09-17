@@ -10,6 +10,7 @@ using VKBot.Features.VK.Domain.Models;
 using VKBot.Features.Core.Application.Services;
 using System.Threading.Tasks;
 using VKBot.Features.VK.Application.Middleware.Attributes;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace VKBot.Features.Core.Application.States;
 
@@ -23,13 +24,16 @@ public class ConfirmUsersState : BaseState
     private readonly AppDbContext _context;
     [NonSerialized]
     private readonly UserNotificationService _notificationService;
+    [NonSerialized]
+    private readonly IMemoryCache _memoryCache;
     private List<User> _unconfirmedUsers = new();
     private int _currentUserIndex = 0;
 
-    public ConfirmUsersState(AppDbContext context, UserNotificationService notificationService)
+    public ConfirmUsersState(AppDbContext context, UserNotificationService notificationService, IMemoryCache memoryCache)
     { 
         _context = context;
         _notificationService = notificationService;
+        _memoryCache = memoryCache;
     }
 
 
@@ -138,6 +142,10 @@ public class ConfirmUsersState : BaseState
             case "заблокировать":
                 dbUser.IsBlocked = true;
                 await _context.SaveChangesAsync();
+                
+                // Удаляем состояние из кэша
+                _memoryCache.Remove($"state_machine_{dbUser.VkUserId}");
+                
                 await _notificationService.SendUserBlockedNotification(dbUser.VkUserId);
                 break;
             case "пропустить":
